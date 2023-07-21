@@ -1,8 +1,17 @@
 [package]
 name = "fishy"
 version = "0.1.0"
+authors = [
+  "adz <x12@adz.garden>",
+  "sandreae <contact@samandreae.com>",
+]
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "Create and publish p2panda schemas"
+repository = "https://github.com/p2panda/fishy"
+license = "AGPL-3.0-or-later"
+readme = "README.md"
 
 [dependencies]
+anyhow = "1.0.72"
+clap = { version = "4.3.19", features = ["derive"] }
+dialoguer = "0.10.4"
