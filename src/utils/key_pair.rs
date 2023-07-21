@@ -1,0 +1,34 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+use std::fs::{File, Permissions};
+use std::os::unix::prelude::PermissionsExt;
+use std::path::PathBuf;
+
+use anyhow::Result;
+use p2panda_rs::identity::KeyPair;
+
+use crate::constants::PRIVATE_KEY_FILE_NAME;
+use crate::utils::files;
+
+pub fn write_key_pair(target_dir: &PathBuf, key_pair: &KeyPair) -> Result<()> {
+    let mut path = target_dir.clone();
+    path.push(PRIVATE_KEY_FILE_NAME);
+
+    let private_key_str = hex::encode(key_pair.private_key());
+    files::write_file(&path, &private_key_str)?;
+
+    let file = File::open(&path)?;
+    file.set_permissions(Permissions::from_mode(0o600))?;
+
+    Ok(())
+}
+
+pub fn read_key_pair(target_dir: &PathBuf) -> Result<KeyPair> {
+    let mut path = target_dir.clone();
+    path.push(PRIVATE_KEY_FILE_NAME);
+
+    let private_key_str = files::read_file(&path)?;
+    let key_pair = KeyPair::from_private_key_str(&private_key_str)?;
+
+    Ok(key_pair)
+}

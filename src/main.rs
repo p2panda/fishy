@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 mod commands;
+mod constants;
+mod utils;
 
 use std::path::PathBuf;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
 /// Command line arguments to configure fishy.
@@ -53,7 +55,8 @@ fn main() -> Result<()> {
             target_dir,
             schema_name,
         } => {
-            commands::init(target_dir, schema_name)?;
+            commands::init(target_dir, schema_name)
+                .with_context(|| "Could not initialise new fishy project")?;
         }
         Commands::Update { private_key_path } => todo!(),
         Commands::Deploy { endpoint } => todo!(),
