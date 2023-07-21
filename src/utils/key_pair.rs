@@ -2,7 +2,7 @@
 
 use std::fs::{File, Permissions};
 use std::os::unix::prelude::PermissionsExt;
-use std::path::PathBuf;
+use std::path::Path;
 
 use anyhow::Result;
 use p2panda_rs::identity::KeyPair;
@@ -10,8 +10,8 @@ use p2panda_rs::identity::KeyPair;
 use crate::constants::PRIVATE_KEY_FILE_NAME;
 use crate::utils::files;
 
-pub fn write_key_pair(target_dir: &PathBuf, key_pair: &KeyPair) -> Result<()> {
-    let mut path = target_dir.clone();
+pub fn write_key_pair(target_dir: &Path, key_pair: &KeyPair) -> Result<()> {
+    let mut path = target_dir.to_path_buf();
     path.push(PRIVATE_KEY_FILE_NAME);
 
     let private_key_str = hex::encode(key_pair.private_key());
@@ -23,8 +23,8 @@ pub fn write_key_pair(target_dir: &PathBuf, key_pair: &KeyPair) -> Result<()> {
     Ok(())
 }
 
-pub fn read_key_pair(target_dir: &PathBuf) -> Result<KeyPair> {
-    let mut path = target_dir.clone();
+pub fn read_key_pair(target_dir: &Path) -> Result<KeyPair> {
+    let mut path = target_dir.to_path_buf();
     path.push(PRIVATE_KEY_FILE_NAME);
 
     let private_key_str = files::read_file(&path)?;

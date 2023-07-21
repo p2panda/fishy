@@ -49,15 +49,15 @@ pub fn init(target_dir: Option<PathBuf>, schema_name: Option<String>) -> Result<
     Ok(())
 }
 
-fn init_secret_file(target_dir: &PathBuf) -> Result<()> {
+fn init_secret_file(target_dir: &Path) -> Result<()> {
     let key_pair = KeyPair::new();
-    write_key_pair(&target_dir, &key_pair)?;
+    write_key_pair(target_dir, &key_pair)?;
     Ok(())
 }
 
-fn init_schema_file(target_dir: &PathBuf, schema_name: &str) -> Result<()> {
+fn init_schema_file(target_dir: &Path, schema_name: &str) -> Result<()> {
     let schema_path = {
-        let mut path = target_dir.clone();
+        let mut path = target_dir.to_path_buf();
         path.push(SCHEMA_FILE_NAME);
         path
     };
