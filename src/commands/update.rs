@@ -1,14 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use p2panda_rs::api::publish;
+use p2panda_rs::document::traits::AsDocument;
 use p2panda_rs::entry::traits::AsEncodedEntry;
 use p2panda_rs::identity::KeyPair;
 use p2panda_rs::operation::decode::decode_operation;
 use p2panda_rs::operation::traits::Schematic;
+use p2panda_rs::schema::system::{SchemaFieldView, SchemaView};
 use p2panda_rs::schema::{Schema, SchemaDescription, SchemaId, SchemaName};
+use p2panda_rs::storage_provider::traits::DocumentStore;
 use p2panda_rs::test_utils::memory_store::MemoryStore;
 
 use crate::lock_file::{Commit, LockFile};
@@ -96,7 +100,28 @@ fn get_planned_schemas(schema_file: &SchemaFile) -> Result<Vec<PlannedSchema>> {
         .collect()
 }
 
-struct CurrentSchemas;
+#[derive(Debug)]
+struct CurrentSchema {
+    pub schema: Schema,
+    pub schema_view: SchemaView,
+    pub schema_field_views: Vec<SchemaFieldView>,
+}
+
+impl CurrentSchema {
+    pub fn new(
+        schema: &Schema,
+        schema_view: &SchemaView,
+        schema_field_views: &[SchemaFieldView],
+    ) -> Self {
+        Self {
+            schema: schema.clone(),
+            schema_view: schema_view.clone(),
+            schema_field_views: schema_field_views.to_vec(),
+        }
+    }
+}
+
+type CurrentSchemas = HashMap<SchemaName, CurrentSchema>;
 
 /// Reads currently committed operations from lock file, materializes schema documents from them
 /// and returns these schemas.
@@ -132,7 +157,7 @@ async fn get_current_schemas(store: &MemoryStore, lock_file: &LockFile) -> Resul
         };
 
         // Publish commits to a in-memory node where they get materialized to documents. This fully
-        // validates the given entries and operations, including schema definition limitations.
+        // validates the given entries and operations.
         publish(
             store,
             schema,
@@ -140,11 +165,69 @@ async fn get_current_schemas(store: &MemoryStore, lock_file: &LockFile) -> Resul
             &plain_operation,
             &commit.operation,
         )
-        .await?;
+        .await
+        .with_context(|| "Invalid commits detected")?;
     }
 
-    let ret = CurrentSchemas {};
-    Ok(ret)
+    // Load materialized documents from node and assemble them
+    let mut current_schemas = CurrentSchemas::new();
+
+    let definitions = store
+        .get_documents_by_schema(&SchemaId::SchemaDefinition(1))
+        .await
+        .with_context(|| "Critical storage failure")?;
+
+    for definition in definitions {
+        let document_view = definition.view();
+
+        // Skip over deleted documents
+        if document_view.is_none() {
+            continue;
+        }
+
+        // Convert document view into more specialized schema view. Unwrap here, since we know the
+        // document was not deleted at this point.
+        let schema_view = SchemaView::try_from(document_view.unwrap())?;
+
+        // Assemble all fields for this schema
+        let mut schema_field_views: Vec<SchemaFieldView> = Vec::new();
+
+        for view_id in schema_view.fields().iter() {
+            let field_definition = store
+                .get_document_by_view_id(view_id)
+                .await
+                .with_context(|| "Critical storage failure")?
+                .ok_or_else(|| {
+                    anyhow!(
+                        "Missing field definition document {view_id} for schema {}",
+                        schema_view.view_id()
+                    )
+                })?;
+
+            // Convert document view into more specialized schema field view
+            let document_view = field_definition
+                .view()
+                .ok_or_else(|| anyhow!("Can not assign a deleted schema field to a schema"))?;
+            schema_field_views.push(SchemaFieldView::try_from(document_view)?);
+        }
+
+        // Finally assemble the schema from all its parts ..
+        let schema = Schema::from_views(schema_view.clone(), schema_field_views.clone())
+            .with_context(|| {
+                format!(
+                    "Could not assemble schema with view id {} from given documents",
+                    definition.view_id()
+                )
+            })?;
+
+        // .. and add it to the resulting hash map
+        current_schemas.insert(
+            schema.id().name(),
+            CurrentSchema::new(&schema, &schema_view, &schema_field_views),
+        );
+    }
+
+    Ok(current_schemas)
 }
 
 fn commit_updates(
