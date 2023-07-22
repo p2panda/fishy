@@ -32,6 +32,11 @@ use crate::utils::files;
 pub struct SchemaFile(BTreeMap<SchemaName, SchemaDefinition>);
 
 impl SchemaFile {
+    /// Returns a new and empty instance of `SchemaFile`.
+    pub fn new() -> Self {
+        Self(BTreeMap::new())
+    }
+
     /// Loads a .toml file from the given path and serialises its content into a new `SchemaFile`
     /// instance.
     pub fn from_path(path: impl AsRef<Path>) -> Result<Self> {
@@ -44,6 +49,22 @@ impl SchemaFile {
     /// Returns an iterator over all defined schemas.
     pub fn iter(&self) -> Iter<SchemaName, SchemaDefinition> {
         self.0.iter()
+    }
+
+    /// Inserts a new schema.
+    pub fn insert(
+        &mut self,
+        name: &SchemaName,
+        description: &SchemaDescription,
+        fields: &SchemaFields,
+    ) {
+        self.0.insert(
+            name.clone(),
+            SchemaDefinition {
+                description: description.clone(),
+                fields: fields.clone(),
+            },
+        );
     }
 }
 
@@ -60,9 +81,19 @@ pub struct SchemaDefinition {
 pub struct SchemaFields(BTreeMap<FieldName, SchemaField>);
 
 impl SchemaFields {
+    /// Returns a new empty instance of `SchemaFields`.
+    pub fn new() -> Self {
+        Self(BTreeMap::new())
+    }
+
     /// Returns the number of given fields.
     pub fn len(&self) -> usize {
         self.0.len()
+    }
+
+    /// Inserts a new field.
+    pub fn insert(&mut self, field_name: &FieldName, field: &SchemaField) {
+        self.0.insert(field_name.clone(), field.clone());
     }
 
     /// Returns an iterator over all fields.
