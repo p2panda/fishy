@@ -4,9 +4,9 @@ use std::env;
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Result};
-use dialoguer::theme::ColorfulTheme;
 use dialoguer::Input;
 use p2panda_rs::identity::KeyPair;
+use p2panda_rs::schema::validate::validate_name;
 
 use crate::constants::{LOCK_FILE_NAME, PRIVATE_KEY_FILE_NAME, SCHEMA_FILE_NAME};
 use crate::utils::files::write_file;
@@ -20,6 +20,14 @@ pub fn init(target_dir: Option<PathBuf>, schema_name: Option<String>) -> Result<
     // Use current directory when none was given
     let target_dir = target_dir.unwrap_or(env::current_dir()?);
     print_variable("target_dir", target_dir.display());
+
+    // Check if target directory exists
+    if !target_dir.exists() {
+        bail!(
+            "Given target directory '{}' does not exist",
+            target_dir.display()
+        );
+    }
 
     // Check if files already exist
     [PRIVATE_KEY_FILE_NAME, SCHEMA_FILE_NAME, LOCK_FILE_NAME]
@@ -38,9 +46,16 @@ pub fn init(target_dir: Option<PathBuf>, schema_name: Option<String>) -> Result<
             print_variable("schema_name", &name);
             name
         }
-        None => Input::<String>::with_theme(&ColorfulTheme::default())
-            .with_prompt("What is the name of your first schema?")
-            .interact_text()?,
+        None => Input::new()
+            .with_prompt("? Name of your schema")
+            .validate_with(|input: &String| -> Result<()> {
+                if !validate_name(input) {
+                    bail!("This is not a valid p2panda schema name");
+                }
+
+                Ok(())
+            })
+            .interact()?,
     };
 
     init_secret_file(&target_dir)?;
