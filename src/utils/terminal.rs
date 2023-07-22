@@ -5,7 +5,7 @@ use std::fmt::Display;
 use console::style;
 
 pub fn print_title(title: &str) {
-    println!("{} ~ {title}", style("fishy").bold().underlined());
+    println!("{} {title}", style("fishy:").bold().underlined());
 }
 
 pub fn print_variable(name: &str, value: impl Display) {
