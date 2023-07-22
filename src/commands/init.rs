@@ -21,24 +21,7 @@ pub fn init(target_dir: Option<PathBuf>, schema_name: Option<String>) -> Result<
     let target_dir = target_dir.unwrap_or(env::current_dir()?);
     print_variable("target_dir", target_dir.display());
 
-    // Check if target directory exists
-    if !target_dir.exists() {
-        bail!(
-            "Given target directory '{}' does not exist",
-            target_dir.display()
-        );
-    }
-
-    // Check if files already exist
-    [PRIVATE_KEY_FILE_NAME, SCHEMA_FILE_NAME, LOCK_FILE_NAME]
-        .iter()
-        .try_for_each(|file_name| {
-            if Path::new(file_name).exists() {
-                bail!("Found an already existing '{file_name}' file")
-            }
-
-            Ok(())
-        })?;
+    sanity_check(&target_dir)?;
 
     // Ask user about the schema name when none was given
     let schema_name = match schema_name {
@@ -60,6 +43,29 @@ pub fn init(target_dir: Option<PathBuf>, schema_name: Option<String>) -> Result<
 
     init_secret_file(&target_dir)?;
     init_schema_file(&target_dir, &schema_name)?;
+
+    Ok(())
+}
+
+fn sanity_check(target_dir: &Path) -> Result<()> {
+    // Check if target directory exists
+    if !target_dir.exists() {
+        bail!(
+            "Given target directory '{}' does not exist",
+            target_dir.display()
+        );
+    }
+
+    // Check if files already exist
+    [PRIVATE_KEY_FILE_NAME, SCHEMA_FILE_NAME, LOCK_FILE_NAME]
+        .iter()
+        .try_for_each(|file_name| {
+            if Path::new(file_name).exists() {
+                bail!("Found an already existing '{file_name}' file")
+            }
+
+            Ok(())
+        })?;
 
     Ok(())
 }
