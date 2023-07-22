@@ -1,1 +1,4 @@
 /target
+schema.lock
+schema.toml
+secret.txt
