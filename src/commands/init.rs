@@ -28,6 +28,11 @@ pub fn init(target_dir: Option<PathBuf>, schema_name: Option<String>) -> Result<
     let schema_name = match schema_name {
         Some(name) => {
             print_variable("schema_name", &name);
+
+            if !validate_name(&name) {
+                bail!("'{name}' is not a valid p2panda schema name");
+            }
+
             name
         }
         None => Input::new()
@@ -48,6 +53,7 @@ pub fn init(target_dir: Option<PathBuf>, schema_name: Option<String>) -> Result<
     Ok(())
 }
 
+/// Checks if everything is okay.
 fn sanity_check(target_dir: &Path) -> Result<()> {
     // Check if target directory exists
     if !target_dir.exists() {
@@ -71,12 +77,14 @@ fn sanity_check(target_dir: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Creates a file with a newly generated ed25519 private key inside.
 fn init_secret_file(target_dir: &Path) -> Result<()> {
     let key_pair = KeyPair::new();
     write_key_pair(target_dir, &key_pair)?;
     Ok(())
 }
 
+/// Creates a new schema file from a small template.
 fn init_schema_file(target_dir: &Path, schema_name: &str) -> Result<()> {
     let schema_path = {
         let mut path = target_dir.to_path_buf();
