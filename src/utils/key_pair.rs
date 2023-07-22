@@ -10,6 +10,7 @@ use p2panda_rs::identity::KeyPair;
 use crate::constants::PRIVATE_KEY_FILE_NAME;
 use crate::utils::files;
 
+/// Writes a hex-encoded ed25519 private key string into a file and sets permission to 0600.
 pub fn write_key_pair(target_dir: &Path, key_pair: &KeyPair) -> Result<()> {
     let mut path = target_dir.to_path_buf();
     path.push(PRIVATE_KEY_FILE_NAME);
@@ -23,6 +24,7 @@ pub fn write_key_pair(target_dir: &Path, key_pair: &KeyPair) -> Result<()> {
     Ok(())
 }
 
+/// Reads a hex-encoded ed25519 private key string from a file and derives key pair from it.
 pub fn read_key_pair(target_dir: &Path) -> Result<KeyPair> {
     let mut path = target_dir.to_path_buf();
     path.push(PRIVATE_KEY_FILE_NAME);

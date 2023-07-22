@@ -21,6 +21,7 @@ pub fn init(target_dir: Option<PathBuf>, schema_name: Option<String>) -> Result<
     let target_dir = target_dir.unwrap_or(env::current_dir()?);
     print_variable("target_dir", target_dir.display());
 
+    // Make sure everything is okay
     sanity_check(&target_dir)?;
 
     // Ask user about the schema name when none was given
