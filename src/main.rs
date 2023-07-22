@@ -2,6 +2,8 @@
 
 mod commands;
 mod constants;
+mod lock_file;
+mod schema_file;
 mod utils;
 
 use std::path::PathBuf;
@@ -24,8 +26,8 @@ enum Commands {
     /// Initialises all files for a new fishy project in a given folder.
     Init {
         /// Target folder where files will be created.
-        #[arg(default_value = None)]
-        target_dir: Option<PathBuf>,
+        #[arg(default_value = ".")]
+        target_dir: PathBuf,
 
         /// Name of the schema which will be created.
         #[arg(short = 'n', default_value = None)]
@@ -34,6 +36,14 @@ enum Commands {
 
     /// Automatically creates and signs p2panda data from a key pair and the defined schemas.
     Update {
+        /// Path to the schema definition file.
+        #[arg(short = 'i', long = "input", default_value = "schema.toml")]
+        schema_path: PathBuf,
+
+        /// Path to the lock file with signed and encoded p2panda data.
+        #[arg(short = 'o', long = "output", default_value = "schema.lock")]
+        lock_path: PathBuf,
+
         /// Path to the key pair file, storing a hex-encoded ed25519 private key.
         #[arg(short = 'k', long = "key", default_value = "secret.txt")]
         private_key_path: PathBuf,
@@ -58,8 +68,15 @@ fn main() -> Result<()> {
             commands::init(target_dir, schema_name)
                 .with_context(|| "Could not initialise new fishy project")?;
         }
-        Commands::Update { private_key_path } => todo!(),
-        Commands::Deploy { endpoint } => todo!(),
+        Commands::Update {
+            schema_path,
+            lock_path,
+            private_key_path,
+        } => {
+            commands::update(schema_path, lock_path, private_key_path)
+                .with_context(|| "Could not create or update schema")?;
+        }
+        Commands::Deploy { .. } => todo!(),
     }
 
     Ok(())

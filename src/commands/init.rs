@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::env;
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Result};
@@ -9,17 +8,15 @@ use p2panda_rs::identity::KeyPair;
 use p2panda_rs::schema::validate::validate_name;
 
 use crate::constants::{LOCK_FILE_NAME, PRIVATE_KEY_FILE_NAME, SCHEMA_FILE_NAME};
-use crate::utils::files::write_file;
+use crate::utils::files::{absolute_path, write_file};
 use crate::utils::key_pair::write_key_pair;
 use crate::utils::terminal::{print_title, print_variable};
 
 /// Initialises all files for a new fishy project in a given folder.
-pub fn init(target_dir: Option<PathBuf>, schema_name: Option<String>) -> Result<()> {
+pub fn init(target_dir: PathBuf, schema_name: Option<String>) -> Result<()> {
     print_title("Initialise a new fishy project");
-
-    // Use current directory when none was given
-    let target_dir = target_dir.unwrap_or(env::current_dir()?);
-    print_variable("target_dir", target_dir.display());
+    print_variable("target_dir", absolute_path(&target_dir)?.display());
+    println!();
 
     // Make sure everything is okay
     sanity_check(&target_dir)?;
@@ -50,6 +47,8 @@ pub fn init(target_dir: Option<PathBuf>, schema_name: Option<String>) -> Result<
     init_secret_file(&target_dir)?;
     init_schema_file(&target_dir, &schema_name)?;
 
+    println!("Successfully initialised new fishy project in target directory");
+
     Ok(())
 }
 
@@ -67,7 +66,10 @@ fn sanity_check(target_dir: &Path) -> Result<()> {
     [PRIVATE_KEY_FILE_NAME, SCHEMA_FILE_NAME, LOCK_FILE_NAME]
         .iter()
         .try_for_each(|file_name| {
-            if Path::new(file_name).exists() {
+            let mut path = target_dir.to_path_buf();
+            path.push(file_name);
+
+            if path.exists() {
                 bail!("Found an already existing '{file_name}' file")
             }
 
@@ -80,7 +82,12 @@ fn sanity_check(target_dir: &Path) -> Result<()> {
 /// Creates a file with a newly generated ed25519 private key inside.
 fn init_secret_file(target_dir: &Path) -> Result<()> {
     let key_pair = KeyPair::new();
-    write_key_pair(target_dir, &key_pair)?;
+
+    let mut path = target_dir.to_path_buf();
+    path.push(PRIVATE_KEY_FILE_NAME);
+
+    write_key_pair(&path, &key_pair)?;
+
     Ok(())
 }
 
@@ -93,7 +100,7 @@ fn init_schema_file(target_dir: &Path, schema_name: &str) -> Result<()> {
     };
 
     write_file(
-        &schema_path,
+        schema_path,
         &format!(
             r#"[{schema_name}]
 description = "Write about your schema here"

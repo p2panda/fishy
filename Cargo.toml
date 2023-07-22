@@ -18,3 +18,6 @@ console = "0.15.7"
 dialoguer = "0.10.4"
 hex = { version = "0.4.3", features = ["serde"] }
 p2panda-rs = { git = "https://github.com/p2panda/p2panda", rev = "2827b3eb9eeaa92632b52c6b81d7d29f861dd61d", features = ["test-utils"] }
+path-clean = "1.0.1"
+serde = { version = "1.0.174", features = ["derive"] }
+toml = "0.7.6"

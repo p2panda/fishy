@@ -11,5 +11,5 @@ pub fn print_title(title: &str) {
 
 /// Prints a nice looking variable value into the terminal.
 pub fn print_variable(name: &str, value: impl Display) {
-    println!("{name}: {value}");
+    println!("- {name}: {}", style(value).dim());
 }
