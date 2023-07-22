@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::collections::btree_map::Iter;
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::{collections::btree_map::Iter, fmt::Display};
 
 use anyhow::{Context, Result};
 use p2panda_rs::schema::{FieldName, SchemaDescription, SchemaId, SchemaName};
@@ -32,11 +32,6 @@ use crate::utils::files;
 pub struct SchemaFile(BTreeMap<SchemaName, SchemaDefinition>);
 
 impl SchemaFile {
-    /// Returns a new and empty instance of `SchemaFile`.
-    pub fn new() -> Self {
-        Self(BTreeMap::new())
-    }
-
     /// Loads a .toml file from the given path and serialises its content into a new `SchemaFile`
     /// instance.
     pub fn from_path(path: impl AsRef<Path>) -> Result<Self> {
@@ -49,22 +44,6 @@ impl SchemaFile {
     /// Returns an iterator over all defined schemas.
     pub fn iter(&self) -> Iter<SchemaName, SchemaDefinition> {
         self.0.iter()
-    }
-
-    /// Inserts a new schema.
-    pub fn insert(
-        &mut self,
-        name: &SchemaName,
-        description: &SchemaDescription,
-        fields: &SchemaFields,
-    ) {
-        self.0.insert(
-            name.clone(),
-            SchemaDefinition {
-                description: description.clone(),
-                fields: fields.clone(),
-            },
-        );
     }
 }
 
@@ -117,6 +96,35 @@ pub enum SchemaField {
         field_type: RelationType,
         schema: RelationSchema,
     },
+}
+
+impl Display for SchemaField {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let type_str = match self {
+            SchemaField::Field { field_type } => match field_type {
+                FieldType::Boolean => "bool",
+                FieldType::Float => "float",
+                FieldType::Integer => "int",
+                FieldType::String => "str",
+            }
+            .to_string(),
+            SchemaField::Relation { field_type, schema } => {
+                let name = match &schema.id {
+                    RelationId::Name(name) => name.to_owned(),
+                    RelationId::Id(id) => id.name(),
+                };
+
+                match field_type {
+                    RelationType::Relation => format!("relation({})", name),
+                    RelationType::RelationList => format!("relation_list({})", name),
+                    RelationType::PinnedRelation => format!("pinned_relation({})", name),
+                    RelationType::PinnedRelationList => format!("pinned_relation_list({})", name),
+                }
+            }
+        };
+
+        write!(f, "{}", type_str)
+    }
 }
 
 /// Definition of field type.

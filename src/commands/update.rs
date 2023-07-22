@@ -5,12 +5,17 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, bail, Context, Result};
 use async_trait::async_trait;
+use comfy_table::modifiers::UTF8_ROUND_CORNERS;
+use comfy_table::presets::UTF8_FULL;
+use comfy_table::{Cell, Color, Table};
+use console::style;
+use dialoguer::Confirm;
 use p2panda_rs::api::publish;
 use p2panda_rs::document::traits::AsDocument;
 use p2panda_rs::document::DocumentViewId;
 use p2panda_rs::entry::traits::AsEncodedEntry;
 use p2panda_rs::hash::Hash;
-use p2panda_rs::identity::KeyPair;
+use p2panda_rs::identity::{KeyPair, PublicKey};
 use p2panda_rs::operation::decode::decode_operation;
 use p2panda_rs::operation::encode::encode_operation;
 use p2panda_rs::operation::traits::Schematic;
@@ -28,7 +33,7 @@ use topological_sort::TopologicalSort;
 
 use crate::lock_file::{Commit, LockFile};
 use crate::schema_file::{
-    FieldType, RelationId, RelationType, SchemaField, SchemaFields, SchemaFile,
+    FieldType, RelationId, RelationSchema, RelationType, SchemaField, SchemaFields, SchemaFile,
 };
 use crate::utils::files::absolute_path;
 use crate::utils::key_pair;
@@ -65,20 +70,28 @@ pub async fn update(
 
     // Load key pair
     let key_pair = key_pair::read_key_pair(&private_key_path)?;
+    let public_key = key_pair.public_key();
 
-    // Plan required updates
-    let current_schemas = get_current_schemas(&schema_file)?;
+    // Calculate diff between previous and current version
     let previous_schemas = get_previous_schemas(&store, &lock_file).await?;
-    let plans = get_diff(previous_schemas, current_schemas).await?;
+    let current_schemas = get_current_schemas(&schema_file)?;
+    let diff = get_diff(previous_schemas.clone(), current_schemas).await?;
 
-    let commits = execute_plan(store, key_pair, plans).await?;
-    println!("{:?}", commits);
+    // Execute plan on the diff
+    let (_commits, plan) = execute_plan(store, key_pair, diff).await?;
 
-    // Show diff and ask user for confirmation of changes
-    // @TODO
+    // Show plan and ask user for confirmation of changes
+    print_plan(plan, previous_schemas, public_key)?;
 
-    // Write commits to lock file
-    // @TODO
+    if Confirm::new()
+        .with_prompt("Do you want to commit these changes?")
+        .interact()?
+    {
+        // Write commits to lock file
+        // @TODO
+    } else {
+        println!("Abort. No changes committed.")
+    }
 
     Ok(())
 }
@@ -120,7 +133,7 @@ fn get_current_schemas(schema_file: &SchemaFile) -> Result<Vec<CurrentSchema>> {
 }
 
 /// Materialized schemas the user already committed.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct PreviousSchema {
     pub schema: Schema,
     pub schema_view: SchemaView,
@@ -262,9 +275,20 @@ struct Executor {
     store: MemoryStore,
     key_pair: KeyPair,
     commits: Vec<Commit>,
+    plans: Vec<Plan>,
 }
 
 impl Executor {
+    /// Returns a new instance of `Executor`.
+    fn new(store: MemoryStore, key_pair: KeyPair) -> Self {
+        Self {
+            store,
+            key_pair,
+            commits: Vec::new(),
+            plans: Vec::new(),
+        }
+    }
+
     /// Signs and publishes an operation and keeps track of the resulting commit.
     async fn commit(&mut self, operation: &Operation) -> Result<Hash> {
         // Encode operation
@@ -288,6 +312,16 @@ impl Executor {
 trait Executable {
     /// Iterate over dependencies and commit required changes.
     async fn execute(&self, executor: &mut Executor) -> Result<DocumentViewId>;
+}
+
+/// After execution we know all changes and all resulting schema ids.
+#[derive(Clone, Debug)]
+struct Plan(SchemaId, SchemaDiff);
+
+impl Plan {
+    pub fn new(schema_id: SchemaId, diff: &SchemaDiff) -> Self {
+        Self(schema_id, diff.clone())
+    }
 }
 
 /// Information about the previous and current version of a schema.
@@ -364,20 +398,25 @@ impl Executable for SchemaDiff {
             }
         };
 
-        // Return the document view id of the created / updated document. This is also
-        // automatically the id of the schema itself.
-        match operation {
+        // Get the document view id of the created / updated document
+        let view_id = match operation {
             Some(operation) => {
                 let entry_hash = executor.commit(&operation).await?;
-                Ok(entry_hash.into())
+                entry_hash.into()
             }
-            None => Ok(self
+            None => self
                 .previous_schema_view
                 .as_ref()
                 .expect("Document to not be deleted")
                 .view_id()
-                .clone()),
-        }
+                .clone(),
+        };
+
+        // Derive the schema id and add it to our list of plans together with the diff
+        let schema_id = SchemaId::new_application(&self.name, &view_id);
+        executor.plans.push(Plan::new(schema_id, self));
+
+        Ok(view_id)
     }
 }
 
@@ -616,20 +655,251 @@ async fn get_diff(
     Ok(result)
 }
 
+/// Execute the changes required to get from the previous version to the current.
+///
+/// Returns a list of signed commits and information about the steps which have been taken.
 async fn execute_plan(
     store: MemoryStore,
     key_pair: KeyPair,
-    plans: Vec<SchemaDiff>,
-) -> Result<Vec<Commit>> {
-    let mut executor = Executor {
-        store,
-        key_pair,
-        commits: Vec::new(),
-    };
+    diffs: Vec<SchemaDiff>,
+) -> Result<(Vec<Commit>, Vec<Plan>)> {
+    let mut executor = Executor::new(store, key_pair);
 
-    for plan in plans {
-        plan.execute(&mut executor).await?;
+    for diff in diffs {
+        diff.execute(&mut executor).await?;
     }
 
-    Ok(executor.commits)
+    Ok((executor.commits, executor.plans))
+}
+
+/// Shows the execution plan to the user.
+fn print_plan(
+    plans: Vec<Plan>,
+    previous_schemas: PreviousSchemas,
+    public_key: PublicKey,
+) -> Result<()> {
+    println!("The following changes will be applied:\n");
+
+    for plan in plans {
+        let schema_diff = plan.1;
+
+        // Schema id
+        let current_schema_id = plan.0;
+        let previous_schema_id = match &schema_diff.previous_schema_view {
+            Some(view) => {
+                let schema_name = SchemaName::new(view.name())?;
+                Some(SchemaId::new_application(&schema_name, view.view_id()))
+            }
+            None => None,
+        };
+
+        // Description
+        let current_description = schema_diff.current_description;
+        let previous_description = match &schema_diff.previous_schema_view {
+            Some(view) => {
+                let schema_description = SchemaDescription::new(view.description())?;
+                Some(schema_description)
+            }
+            None => None,
+        };
+
+        // Fields
+        let current_fields: SchemaFields = {
+            let mut fields = SchemaFields::new();
+
+            for field in schema_diff.current_fields {
+                let schema_field: SchemaField = match field.current_field_type {
+                    FieldTypeDiff::Field(field_type) => SchemaField::Field { field_type },
+                    FieldTypeDiff::Relation(field_type, schema_diff) => SchemaField::Relation {
+                        field_type,
+                        schema: RelationSchema {
+                            id: RelationId::Name(schema_diff.name.clone()),
+                            external: None,
+                        },
+                    },
+                };
+
+                fields.insert(&field.name, &schema_field);
+            }
+
+            fields
+        };
+
+        let previous_fields = match &schema_diff.previous_schema_view {
+            Some(previous) => {
+                let mut fields = SchemaFields::new();
+
+                let previous_schema = previous_schemas
+                    .values()
+                    .find(|item| {
+                        return item.schema_view.view_id() == previous.view_id();
+                    })
+                    .expect("Needs to exist at this point");
+
+                for (field_name, field_type) in previous_schema.schema.fields().iter() {
+                    let schema_field = match field_type {
+                        PandaFieldType::Boolean => SchemaField::Field {
+                            field_type: FieldType::Boolean,
+                        },
+                        PandaFieldType::Integer => SchemaField::Field {
+                            field_type: FieldType::Integer,
+                        },
+                        PandaFieldType::Float => SchemaField::Field {
+                            field_type: FieldType::Float,
+                        },
+                        PandaFieldType::String => SchemaField::Field {
+                            field_type: FieldType::String,
+                        },
+                        PandaFieldType::Relation(schema_id) => SchemaField::Relation {
+                            field_type: RelationType::Relation,
+                            schema: RelationSchema {
+                                id: RelationId::Name(schema_id.name()),
+                                external: None,
+                            },
+                        },
+                        PandaFieldType::RelationList(schema_id) => SchemaField::Relation {
+                            field_type: RelationType::RelationList,
+                            schema: RelationSchema {
+                                id: RelationId::Name(schema_id.name()),
+                                external: None,
+                            },
+                        },
+                        PandaFieldType::PinnedRelation(schema_id) => SchemaField::Relation {
+                            field_type: RelationType::PinnedRelation,
+                            schema: RelationSchema {
+                                id: RelationId::Name(schema_id.name()),
+                                external: None,
+                            },
+                        },
+                        PandaFieldType::PinnedRelationList(schema_id) => SchemaField::Relation {
+                            field_type: RelationType::PinnedRelationList,
+                            schema: RelationSchema {
+                                id: RelationId::Name(schema_id.name()),
+                                external: None,
+                            },
+                        },
+                    };
+
+                    fields.insert(field_name, &schema_field);
+                }
+
+                Some(fields)
+            }
+            None => None,
+        };
+
+        let mut fields: HashMap<FieldName, (Option<SchemaField>, Option<SchemaField>)> =
+            HashMap::new();
+
+        for (field_name, field_type) in current_fields.iter() {
+            fields.insert(field_name.clone(), (Some(field_type.clone()), None));
+        }
+
+        if let Some(previous_fields) = &previous_fields {
+            for (field_name, field_type) in previous_fields.iter() {
+                match fields.get(field_name) {
+                    Some(entry) => {
+                        fields.insert(
+                            field_name.clone(),
+                            (entry.0.clone(), Some(field_type.clone())),
+                        );
+                    }
+                    None => {
+                        fields.insert(field_name.clone(), (None, Some(field_type.clone())));
+                    }
+                }
+            }
+        }
+
+        // Display schema id
+        println!(
+            "{}",
+            style(format!("{current_schema_id}")).bold().underlined(),
+        );
+
+        if let Some(previous_schema_id) = &previous_schema_id {
+            println!("Previously: {previous_schema_id}");
+        }
+
+        // Display name
+        println!();
+        println!(
+            "Name: {}",
+            style(current_schema_id.name()).fg(if previous_schema_id.is_some() {
+                console::Color::White
+            } else {
+                console::Color::Green
+            })
+        );
+
+        // Display description
+        if let Some(previous_description) = &previous_description {
+            if previous_description != &current_description {
+                println!(
+                    "Description: {}",
+                    style(format!(
+                        "\"{previous_description}\" -> \"{current_description}\""
+                    ))
+                    .yellow()
+                );
+            } else {
+                println!("Description: \"{current_description}\"");
+            }
+        } else {
+            println!(
+                "Description: {}",
+                style(format!("\"{current_description}\"")).green()
+            );
+        }
+
+        // Display fields
+        let mut table = Table::new();
+        table
+            .load_preset(UTF8_FULL)
+            .apply_modifier(UTF8_ROUND_CORNERS)
+            .set_header(vec!["#", "Field Name", "Field Type"]);
+
+        for (index, (field_name, (current_field, previous_field))) in fields.iter().enumerate() {
+            let color = match (current_field, previous_field) {
+                (None, Some(_)) => Color::Red,
+                (Some(_), None) => Color::Green,
+                (Some(current), Some(previous)) => {
+                    if current != previous {
+                        Color::Yellow
+                    } else {
+                        Color::White
+                    }
+                }
+                _ => unreachable!(),
+            };
+
+            let field_type = match (current_field, previous_field) {
+                (None, Some(previous)) => format!("{previous}"),
+                (Some(current), None) => format!("{current}"),
+                (Some(current), Some(previous)) => {
+                    if current != previous {
+                        format!("{previous} -> {current}")
+                    } else {
+                        format!("{current}")
+                    }
+                }
+                _ => unreachable!(),
+            };
+
+            table.add_row(vec![
+                Cell::new((index + 1).to_string()).fg(color),
+                Cell::new(field_name.to_owned()).fg(color),
+                Cell::new(field_type).fg(color),
+            ]);
+        }
+
+        println!("{table}\n");
+    }
+
+    println!(
+        "Public key used for signing: {}\n",
+        style(public_key).bold()
+    );
+
+    Ok(())
 }
