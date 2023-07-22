@@ -3,10 +3,13 @@
 use std::path::PathBuf;
 
 use anyhow::{bail, Result};
+use p2panda_rs::api::publish;
+use p2panda_rs::entry::traits::AsEncodedEntry;
 use p2panda_rs::identity::KeyPair;
 use p2panda_rs::operation::decode::decode_operation;
 use p2panda_rs::operation::traits::Schematic;
 use p2panda_rs::schema::{Schema, SchemaDescription, SchemaId, SchemaName};
+use p2panda_rs::test_utils::memory_store::MemoryStore;
 
 use crate::lock_file::{Commit, LockFile};
 use crate::schema_file::{SchemaFields, SchemaFile};
@@ -15,7 +18,12 @@ use crate::utils::key_pair;
 use crate::utils::terminal::{print_title, print_variable};
 
 /// Automatically creates and signs p2panda data from a key pair and the defined schemas.
-pub fn update(schema_path: PathBuf, lock_path: PathBuf, private_key_path: PathBuf) -> Result<()> {
+pub async fn update(
+    store: MemoryStore,
+    schema_path: PathBuf,
+    lock_path: PathBuf,
+    private_key_path: PathBuf,
+) -> Result<()> {
     print_title("Create operations and sign entries to update schema");
     print_variable("schema_path", absolute_path(&schema_path)?.display());
     print_variable("lock_path", absolute_path(&lock_path)?.display());
@@ -40,7 +48,7 @@ pub fn update(schema_path: PathBuf, lock_path: PathBuf, private_key_path: PathBu
 
     // Plan update and generate required commits from it
     let planned_schemas = get_planned_schemas(&schema_file)?;
-    let current_schemas = get_current_schemas(&lock_file)?;
+    let current_schemas = get_current_schemas(&store, &lock_file).await?;
     let commits = commit_updates(planned_schemas, current_schemas, &key_pair)?;
 
     // Show diff and ask user for confirmation of changes
@@ -92,12 +100,21 @@ struct CurrentSchemas;
 
 /// Reads currently committed operations from lock file, materializes schema documents from them
 /// and returns these schemas.
-fn get_current_schemas(lock_file: &LockFile) -> Result<CurrentSchemas> {
+async fn get_current_schemas(store: &MemoryStore, lock_file: &LockFile) -> Result<CurrentSchemas> {
     // Sometimes `commits` is not defined in the .toml file, set an empty array as a fallback
     let commits = lock_file.commits.clone().unwrap_or(vec![]);
 
     // Publish every commit in our temporary, in-memory "node" to materialize schema documents
     for commit in commits {
+        // Check entry hash integrity
+        if commit.entry_hash != commit.entry.hash() {
+            bail!(
+                "Entry hash {} does not match it's content",
+                commit.entry_hash
+            );
+        }
+
+        // Decode operation
         let plain_operation = decode_operation(&commit.operation)?;
 
         // Derive schema definitions from the operation's schema id. This fails if there's an
@@ -114,15 +131,16 @@ fn get_current_schemas(lock_file: &LockFile) -> Result<CurrentSchemas> {
             }
         };
 
-        // @TODO
-        /* publish(
-            &context.store,
+        // Publish commits to a in-memory node where they get materialized to documents. This fully
+        // validates the given entries and operations, including schema definition limitations.
+        publish(
+            store,
             schema,
             &commit.entry,
             &plain_operation,
             &commit.operation,
         )
-        .await?; */
+        .await?;
     }
 
     let ret = CurrentSchemas {};

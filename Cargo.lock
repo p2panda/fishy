@@ -535,6 +535,7 @@ dependencies = [
  "p2panda-rs",
  "path-clean",
  "serde",
+ "tokio",
  "toml",
 ]
 

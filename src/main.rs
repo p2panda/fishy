@@ -10,6 +10,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
+use p2panda_rs::test_utils::memory_store::MemoryStore;
 
 /// Command line arguments to configure fishy.
 #[derive(Debug, Parser)]
@@ -57,8 +58,10 @@ enum Commands {
     },
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let args = Cli::parse();
+    let store = MemoryStore::default();
 
     match args.command {
         Commands::Init {
@@ -73,7 +76,8 @@ fn main() -> Result<()> {
             lock_path,
             private_key_path,
         } => {
-            commands::update(schema_path, lock_path, private_key_path)
+            commands::update(store, schema_path, lock_path, private_key_path)
+                .await
                 .with_context(|| "Could not create or update schema")?;
         }
         Commands::Deploy { .. } => todo!(),
