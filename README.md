@@ -1,7 +1,7 @@
 <h1 align="center">fishy</h1>
 
 <div align="center">
-  <strong>Create and publish p2panda schemas</strong>
+  <strong>Create, manage and deploy p2panda schemas</strong>
 </div>
 
 <br />
