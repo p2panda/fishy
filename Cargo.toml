@@ -22,3 +22,4 @@ path-clean = "1.0.1"
 serde = { version = "1.0.174", features = ["derive"] }
 tokio = { version = "1.29.1", features = ["macros", "rt"] }
 toml = "0.7.6"
+topological-sort = "0.2.2"

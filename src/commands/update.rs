@@ -11,12 +11,15 @@ use p2panda_rs::identity::KeyPair;
 use p2panda_rs::operation::decode::decode_operation;
 use p2panda_rs::operation::traits::Schematic;
 use p2panda_rs::schema::system::{SchemaFieldView, SchemaView};
-use p2panda_rs::schema::{Schema, SchemaDescription, SchemaId, SchemaName};
+use p2panda_rs::schema::{FieldName, Schema, SchemaDescription, SchemaId, SchemaName};
 use p2panda_rs::storage_provider::traits::DocumentStore;
 use p2panda_rs::test_utils::memory_store::MemoryStore;
+use topological_sort::TopologicalSort;
 
 use crate::lock_file::{Commit, LockFile};
-use crate::schema_file::{SchemaFields, SchemaFile};
+use crate::schema_file::{
+    FieldType, RelationId, RelationType, SchemaField, SchemaFields, SchemaFile,
+};
 use crate::utils::files::absolute_path;
 use crate::utils::key_pair;
 use crate::utils::terminal::{print_title, print_variable};
@@ -39,6 +42,9 @@ pub async fn update(
 
     // Load schema file
     let schema_file = SchemaFile::from_path(&schema_path)?;
+    if schema_file.iter().len() == 0 {
+        bail!("Schema file is empty");
+    }
 
     // Load lock file or create new one when it does not exist yet
     let lock_file = if lock_path.exists() {
@@ -51,9 +57,11 @@ pub async fn update(
     let key_pair = key_pair::read_key_pair(&private_key_path)?;
 
     // Plan update and generate required commits from it
-    let planned_schemas = get_planned_schemas(&schema_file)?;
-    let current_schemas = get_current_schemas(&store, &lock_file).await?;
-    let commits = commit_updates(planned_schemas, current_schemas, &key_pair)?;
+    let current_schemas = get_current_schemas(&schema_file)?;
+    let previous_schemas = get_previous_schemas(&store, &lock_file).await?;
+    let diff = get_diff(previous_schemas, current_schemas).await?;
+
+    println!("{:#?}", diff);
 
     // Show diff and ask user for confirmation of changes
     // @TODO
@@ -65,14 +73,14 @@ pub async fn update(
 }
 
 /// Schema which was defined in the user's schema file.
-#[derive(Debug)]
-struct PlannedSchema {
+#[derive(Clone, Debug)]
+struct CurrentSchema {
     pub name: SchemaName,
     pub description: SchemaDescription,
     pub fields: SchemaFields,
 }
 
-impl PlannedSchema {
+impl CurrentSchema {
     pub fn new(name: &SchemaName, description: &SchemaDescription, fields: &SchemaFields) -> Self {
         Self {
             name: name.clone(),
@@ -82,8 +90,8 @@ impl PlannedSchema {
     }
 }
 
-/// Extracts all schema definitions from user file and returns them as planned schemas.
-fn get_planned_schemas(schema_file: &SchemaFile) -> Result<Vec<PlannedSchema>> {
+/// Extracts all schema definitions from user file and returns them as current schemas.
+fn get_current_schemas(schema_file: &SchemaFile) -> Result<Vec<CurrentSchema>> {
     schema_file
         .iter()
         .map(|(schema_name, schema_definition)| {
@@ -91,7 +99,7 @@ fn get_planned_schemas(schema_file: &SchemaFile) -> Result<Vec<PlannedSchema>> {
                 bail!("Schema {schema_name} does not contain any fields");
             }
 
-            Ok(PlannedSchema::new(
+            Ok(CurrentSchema::new(
                 schema_name,
                 &schema_definition.description,
                 &schema_definition.fields,
@@ -100,14 +108,15 @@ fn get_planned_schemas(schema_file: &SchemaFile) -> Result<Vec<PlannedSchema>> {
         .collect()
 }
 
+/// Materialized schemas the user already committed.
 #[derive(Debug)]
-struct CurrentSchema {
+struct PreviousSchema {
     pub schema: Schema,
     pub schema_view: SchemaView,
     pub schema_field_views: Vec<SchemaFieldView>,
 }
 
-impl CurrentSchema {
+impl PreviousSchema {
     pub fn new(
         schema: &Schema,
         schema_view: &SchemaView,
@@ -121,11 +130,14 @@ impl CurrentSchema {
     }
 }
 
-type CurrentSchemas = HashMap<SchemaName, CurrentSchema>;
+type PreviousSchemas = HashMap<SchemaName, PreviousSchema>;
 
-/// Reads currently committed operations from lock file, materializes schema documents from them
+/// Reads previously committed operations from lock file, materializes schema documents from them
 /// and returns these schemas.
-async fn get_current_schemas(store: &MemoryStore, lock_file: &LockFile) -> Result<CurrentSchemas> {
+async fn get_previous_schemas(
+    store: &MemoryStore,
+    lock_file: &LockFile,
+) -> Result<PreviousSchemas> {
     // Sometimes `commits` is not defined in the .toml file, set an empty array as a fallback
     let commits = lock_file.commits.clone().unwrap_or(vec![]);
 
@@ -170,7 +182,7 @@ async fn get_current_schemas(store: &MemoryStore, lock_file: &LockFile) -> Resul
     }
 
     // Load materialized documents from node and assemble them
-    let mut current_schemas = CurrentSchemas::new();
+    let mut previous_schemas = PreviousSchemas::new();
 
     let definitions = store
         .get_documents_by_schema(&SchemaId::SchemaDefinition(1))
@@ -221,19 +233,193 @@ async fn get_current_schemas(store: &MemoryStore, lock_file: &LockFile) -> Resul
             })?;
 
         // .. and add it to the resulting hash map
-        current_schemas.insert(
+        previous_schemas.insert(
             schema.id().name(),
-            CurrentSchema::new(&schema, &schema_view, &schema_field_views),
+            PreviousSchema::new(&schema, &schema_view, &schema_field_views),
         );
     }
 
-    Ok(current_schemas)
+    Ok(previous_schemas)
 }
 
-fn commit_updates(
-    planned_schemas: Vec<PlannedSchema>,
-    current_schemas: CurrentSchemas,
-    key_pair: &KeyPair,
-) -> Result<Vec<Commit>> {
-    todo!();
+#[derive(Debug)]
+struct ExecutionPlan {}
+
+/// Information about the previous and current version of a schema.
+///
+/// The contained field definition documents are direct dependencies of the schema definition
+/// document.
+#[derive(Clone, Debug)]
+struct SchemaDiff {
+    /// Name of the schema.
+    name: SchemaName,
+
+    /// Previous version of this schema (if it existed).
+    previous_schema_view: Option<SchemaView>,
+
+    /// Current version of the schema description.
+    current_description: SchemaDescription,
+
+    /// Current version of the schema fields.
+    current_fields: Vec<FieldDiff>,
+}
+
+/// Information about the previous and current version of a field.
+///
+/// A field of relation type links to a schema which is a direct dependency.
+#[derive(Clone, Debug)]
+struct FieldDiff {
+    /// Name of the schema field.
+    name: FieldName,
+
+    /// Previous version of this field (if it existed).
+    previous_field_view: Option<SchemaFieldView>,
+
+    /// Current version of the field type.
+    current_field_type: FieldTypeDiff,
+}
+
+#[derive(Clone, Debug)]
+enum FieldTypeDiff {
+    /// Basic schema field type.
+    Field(FieldType),
+
+    /// Relation field type linked to a schema.
+    Relation(RelationType, SchemaDiff),
+}
+
+/// Gathers the differences between the current and the previous versions and organises them in
+/// nested, topological order as some changes depend on each other.
+async fn get_diff(
+    previous_schemas: PreviousSchemas,
+    current_schemas: Vec<CurrentSchema>,
+) -> Result<Vec<SchemaDiff>> {
+    // Create a linked dependency graph from all schemas and their relations to each other: Fields
+    // are direct dependencies of schemas, relation fields are dependend on their linked schemas.
+    //
+    // We can apply topological ordering to determine which schemas need to be materialized first
+    // before the others can relate to them.
+    let mut graph = TopologicalSort::<SchemaName>::new();
+
+    for current_schema in current_schemas.iter() {
+        graph.insert(current_schema.name.clone());
+
+        for (_, schema_field) in current_schema.fields.iter() {
+            if let SchemaField::Relation { schema, .. } = schema_field {
+                match &schema.id {
+                    RelationId::Name(linked_schema) => {
+                        graph.add_dependency(linked_schema.clone(), current_schema.name.clone());
+                    }
+                    RelationId::Id(_) => bail!("Relating to schemas via `id` is not supported yet"),
+                }
+            }
+        }
+    }
+
+    // After topological sorting we get a list of sorted schemas.
+    //
+    // The first time we "pop" from that list we get the high-level "dependency groups" which are
+    // self-contained as some of the schemas might not relate to each other.
+    //
+    // The order of these groups does not matter but for concistency we deterministically sort them
+    // by name of the first item in the list.
+    let mut grouped_schemas: Vec<SchemaName> = graph.pop_all();
+    grouped_schemas.sort();
+
+    // Now we "pop" the rest, to gather _all_ sorted schemas.
+    let mut sorted_schemas: Vec<SchemaName> = grouped_schemas.clone();
+    loop {
+        let mut next = graph.pop_all();
+
+        if next.is_empty() && !graph.is_empty() {
+            bail!("Cyclic dependency detected between relations");
+        } else if next.is_empty() {
+            break;
+        } else {
+            sorted_schemas.append(&mut next);
+        }
+    }
+
+    // Based on this sorted list in topological order we can now extend it with information about
+    // what was previously given and what the current state is. This will help us to determine the
+    // concrete changes required to get to the current version
+    let mut schema_diffs: Vec<SchemaDiff> = Vec::new();
+
+    for current_schema_name in sorted_schemas {
+        // Get the previous (if it exists) and current schema versions
+        let previous_schema = previous_schemas.get(&current_schema_name);
+        let current_schema = current_schemas
+            .iter()
+            .find(|item| item.name == current_schema_name)
+            // Since we sorted everything in topological order we can be sure that this exists
+            .expect("Current schema needs to be given in array");
+
+        // Get the regarding current or previously existing fields and derive plans from it
+        let mut field_diffs: Vec<FieldDiff> = Vec::new();
+
+        for (current_field_name, current_field) in current_schema.fields.iter() {
+            // Get the current field version
+            let current_field_type = match current_field {
+                SchemaField::Field { field_type } => FieldTypeDiff::Field(field_type.clone()),
+                SchemaField::Relation { field_type, schema } => match &schema.id {
+                    RelationId::Name(linked_schema_name) => {
+                        let schema_diff = schema_diffs
+                            .iter()
+                            .find(|plan| &plan.name == linked_schema_name)
+                            // Since we sorted everything in topological order we can be sure that
+                            // this exists when we look for it
+                            .expect("Current schema needs to be given in array");
+
+                        FieldTypeDiff::Relation(field_type.clone(), schema_diff.clone())
+                    }
+                    RelationId::Id(_) => bail!("Relating to schemas via `id` is not supported yet"),
+                },
+            };
+
+            // Get the previous field version (if it existed)
+            let previous_field_view = match previous_schema {
+                Some(schema) => schema
+                    .schema_field_views
+                    .iter()
+                    .find(|field| field.name() == current_field_name)
+                    .cloned(),
+                None => None,
+            };
+
+            let field_diff = FieldDiff {
+                name: current_field_name.clone(),
+                previous_field_view,
+                current_field_type,
+            };
+
+            field_diffs.push(field_diff);
+        }
+
+        // Get the previous schema version (if it existed)
+        let previous_schema_view = previous_schema.map(|schema| schema.schema_view.clone());
+
+        let schema_diff = SchemaDiff {
+            name: current_schema_name.clone(),
+            previous_schema_view,
+            current_description: current_schema.description.clone(),
+            current_fields: field_diffs,
+        };
+
+        schema_diffs.push(schema_diff);
+    }
+
+    // For each independent "schema group" we return one diff each. Every diff nests the required
+    // changes inside itself
+    let result = grouped_schemas
+        .iter()
+        .map(|group| {
+            return schema_diffs
+                .iter()
+                .find(|diff| &diff.name == group)
+                .cloned()
+                .unwrap();
+        })
+        .collect();
+
+    Ok(result)
 }
