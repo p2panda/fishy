@@ -2,11 +2,14 @@
 
 use std::path::PathBuf;
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use p2panda_rs::identity::KeyPair;
+use p2panda_rs::operation::decode::decode_operation;
+use p2panda_rs::operation::traits::Schematic;
+use p2panda_rs::schema::{Schema, SchemaDescription, SchemaId, SchemaName};
 
 use crate::lock_file::{Commit, LockFile};
-use crate::schema_file::SchemaFile;
+use crate::schema_file::{SchemaFields, SchemaFile};
 use crate::utils::files::absolute_path;
 use crate::utils::key_pair;
 use crate::utils::terminal::{print_title, print_variable};
@@ -49,20 +52,85 @@ pub fn update(schema_path: PathBuf, lock_path: PathBuf, private_key_path: PathBu
     Ok(())
 }
 
-struct PlannedSchemas;
+/// Schema which was defined in the user's schema file.
+#[derive(Debug)]
+struct PlannedSchema {
+    pub name: SchemaName,
+    pub description: SchemaDescription,
+    pub fields: SchemaFields,
+}
+
+impl PlannedSchema {
+    pub fn new(name: &SchemaName, description: &SchemaDescription, fields: &SchemaFields) -> Self {
+        Self {
+            name: name.clone(),
+            description: description.clone(),
+            fields: fields.clone(),
+        }
+    }
+}
+
+/// Extracts all schema definitions from user file and returns them as planned schemas.
+fn get_planned_schemas(schema_file: &SchemaFile) -> Result<Vec<PlannedSchema>> {
+    schema_file
+        .iter()
+        .map(|(schema_name, schema_definition)| {
+            if schema_definition.fields.len() == 0 {
+                bail!("Schema {schema_name} does not contain any fields");
+            }
+
+            Ok(PlannedSchema::new(
+                schema_name,
+                &schema_definition.description,
+                &schema_definition.fields,
+            ))
+        })
+        .collect()
+}
 
 struct CurrentSchemas;
 
-fn get_planned_schemas(schema_file: &SchemaFile) -> Result<PlannedSchemas> {
-    todo!();
-}
-
+/// Reads currently committed operations from lock file, materializes schema documents from them
+/// and returns these schemas.
 fn get_current_schemas(lock_file: &LockFile) -> Result<CurrentSchemas> {
-    todo!();
+    // Sometimes `commits` is not defined in the .toml file, set an empty array as a fallback
+    let commits = lock_file.commits.clone().unwrap_or(vec![]);
+
+    // Publish every commit in our temporary, in-memory "node" to materialize schema documents
+    for commit in commits {
+        let plain_operation = decode_operation(&commit.operation)?;
+
+        // Derive schema definitions from the operation's schema id. This fails if there's an
+        // invalid id or unknown system schema version.
+        let schema = match plain_operation.schema_id() {
+            SchemaId::SchemaDefinition(version) => {
+                Schema::get_system(SchemaId::SchemaDefinition(*version))?
+            }
+            SchemaId::SchemaFieldDefinition(version) => {
+                Schema::get_system(SchemaId::SchemaFieldDefinition(*version))?
+            }
+            schema_id => {
+                bail!("Detected commit with invalid schema id {schema_id} in lock file");
+            }
+        };
+
+        // @TODO
+        /* publish(
+            &context.store,
+            schema,
+            &commit.entry,
+            &plain_operation,
+            &commit.operation,
+        )
+        .await?; */
+    }
+
+    let ret = CurrentSchemas {};
+    Ok(ret)
 }
 
 fn commit_updates(
-    planned_schemas: PlannedSchemas,
+    planned_schemas: Vec<PlannedSchema>,
     current_schemas: CurrentSchemas,
     key_pair: &KeyPair,
 ) -> Result<Vec<Commit>> {
