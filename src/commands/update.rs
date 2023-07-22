@@ -4,15 +4,25 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use anyhow::{anyhow, bail, Context, Result};
+use async_trait::async_trait;
 use p2panda_rs::api::publish;
 use p2panda_rs::document::traits::AsDocument;
+use p2panda_rs::document::DocumentViewId;
 use p2panda_rs::entry::traits::AsEncodedEntry;
+use p2panda_rs::hash::Hash;
 use p2panda_rs::identity::KeyPair;
 use p2panda_rs::operation::decode::decode_operation;
+use p2panda_rs::operation::encode::encode_operation;
 use p2panda_rs::operation::traits::Schematic;
+use p2panda_rs::operation::{
+    Operation, OperationAction, OperationBuilder, OperationValue, PinnedRelationList,
+};
 use p2panda_rs::schema::system::{SchemaFieldView, SchemaView};
-use p2panda_rs::schema::{FieldName, Schema, SchemaDescription, SchemaId, SchemaName};
+use p2panda_rs::schema::{
+    FieldName, FieldType as PandaFieldType, Schema, SchemaDescription, SchemaId, SchemaName,
+};
 use p2panda_rs::storage_provider::traits::DocumentStore;
+use p2panda_rs::test_utils::memory_store::helpers::send_to_store;
 use p2panda_rs::test_utils::memory_store::MemoryStore;
 use topological_sort::TopologicalSort;
 
@@ -56,12 +66,13 @@ pub async fn update(
     // Load key pair
     let key_pair = key_pair::read_key_pair(&private_key_path)?;
 
-    // Plan update and generate required commits from it
+    // Plan required updates
     let current_schemas = get_current_schemas(&schema_file)?;
     let previous_schemas = get_previous_schemas(&store, &lock_file).await?;
-    let diff = get_diff(previous_schemas, current_schemas).await?;
+    let plans = get_diff(previous_schemas, current_schemas).await?;
 
-    println!("{:#?}", diff);
+    let commits = execute_plan(store, key_pair, plans).await?;
+    println!("{:?}", commits);
 
     // Show diff and ask user for confirmation of changes
     // @TODO
@@ -242,8 +253,42 @@ async fn get_previous_schemas(
     Ok(previous_schemas)
 }
 
+/// This executor accounts for the nested, recursive layout of schemas and their dependencies.
+///
+/// It iterates over the dependency graph in a depth-first order, calculates the required changes
+/// and generates operations out of them.
 #[derive(Debug)]
-struct ExecutionPlan {}
+struct Executor {
+    store: MemoryStore,
+    key_pair: KeyPair,
+    commits: Vec<Commit>,
+}
+
+impl Executor {
+    /// Signs and publishes an operation and keeps track of the resulting commit.
+    async fn commit(&mut self, operation: &Operation) -> Result<Hash> {
+        // Encode operation
+        let schema = Schema::get_system(operation.schema_id().to_owned())?;
+        let encoded_operation = encode_operation(operation)?;
+
+        // Publish operation on node which might already contain data from previously published
+        // schemas
+        let (encoded_entry, _) = send_to_store(&self.store, operation, schema, &self.key_pair)
+            .await
+            .map_err(|err| anyhow!("Critical storage failure: {err}"))?;
+
+        self.commits
+            .push(Commit::new(&encoded_entry, &encoded_operation));
+
+        Ok(encoded_entry.hash())
+    }
+}
+
+#[async_trait]
+trait Executable {
+    /// Iterate over dependencies and commit required changes.
+    async fn execute(&self, executor: &mut Executor) -> Result<DocumentViewId>;
+}
 
 /// Information about the previous and current version of a schema.
 ///
@@ -264,6 +309,78 @@ struct SchemaDiff {
     current_fields: Vec<FieldDiff>,
 }
 
+#[async_trait]
+impl Executable for SchemaDiff {
+    async fn execute(&self, executor: &mut Executor) -> Result<DocumentViewId> {
+        // Execute all fields first, they are direct dependencies of a schema
+        let mut field_view_ids: Vec<DocumentViewId> = Vec::new();
+
+        for field in &self.current_fields {
+            let field_view_id = field.execute(executor).await?;
+            field_view_ids.push(field_view_id);
+        }
+
+        let operation: Option<Operation> = match &self.previous_schema_view {
+            // A previous version of this schema existed already
+            Some(previous_schema_view) => {
+                let mut fields: Vec<(&str, OperationValue)> = Vec::new();
+
+                if self.current_description.to_string() != previous_schema_view.description() {
+                    fields.push(("description", self.current_description.to_string().into()));
+                }
+
+                if &PinnedRelationList::new(field_view_ids.clone()) != previous_schema_view.fields()
+                {
+                    fields.push(("fields", field_view_ids.into()));
+                }
+
+                if !fields.is_empty() {
+                    let operation = OperationBuilder::new(&SchemaId::SchemaDefinition(1))
+                        .previous(previous_schema_view.view_id())
+                        .action(OperationAction::Update)
+                        .fields(&fields)
+                        .build()?;
+
+                    Some(operation)
+                } else {
+                    // Nothing has changed ..
+                    None
+                }
+            }
+
+            // We can not safely determine a previous version, either it never existed or its name
+            // changed. Let's create a new document!
+            None => {
+                let operation = OperationBuilder::new(&SchemaId::SchemaDefinition(1))
+                    .action(OperationAction::Create)
+                    .fields(&[
+                        ("name", self.name.to_string().into()),
+                        ("description", self.current_description.to_string().into()),
+                        ("fields", field_view_ids.into()),
+                    ])
+                    .build()?;
+
+                Some(operation)
+            }
+        };
+
+        // Return the document view id of the created / updated document. This is also
+        // automatically the id of the schema itself.
+        match operation {
+            Some(operation) => {
+                let entry_hash = executor.commit(&operation).await?;
+                Ok(entry_hash.into())
+            }
+            None => Ok(self
+                .previous_schema_view
+                .as_ref()
+                .expect("Document to not be deleted")
+                .view_id()
+                .clone()),
+        }
+    }
+}
+
 /// Information about the previous and current version of a field.
 ///
 /// A field of relation type links to a schema which is a direct dependency.
@@ -277,6 +394,81 @@ struct FieldDiff {
 
     /// Current version of the field type.
     current_field_type: FieldTypeDiff,
+}
+
+#[async_trait]
+impl Executable for FieldDiff {
+    async fn execute(&self, executor: &mut Executor) -> Result<DocumentViewId> {
+        let current_field_type = match &self.current_field_type {
+            // Convert all basic field types
+            FieldTypeDiff::Field(FieldType::String) => PandaFieldType::String,
+            FieldTypeDiff::Field(FieldType::Boolean) => PandaFieldType::Boolean,
+            FieldTypeDiff::Field(FieldType::Float) => PandaFieldType::Float,
+            FieldTypeDiff::Field(FieldType::Integer) => PandaFieldType::Integer,
+
+            // Convert relation field types
+            FieldTypeDiff::Relation(relation, schema_plan) => {
+                // Execute the linked schema of the relation first
+                let view_id = schema_plan.execute(executor).await?;
+
+                // After execution we receive the resulting schema id we can now use to link to it
+                let schema_id = SchemaId::new_application(&schema_plan.name, &view_id);
+
+                match relation {
+                    RelationType::Relation => PandaFieldType::Relation(schema_id),
+                    RelationType::RelationList => PandaFieldType::RelationList(schema_id),
+                    RelationType::PinnedRelation => PandaFieldType::PinnedRelation(schema_id),
+                    RelationType::PinnedRelationList => {
+                        PandaFieldType::PinnedRelationList(schema_id)
+                    }
+                }
+            }
+        };
+
+        let operation: Option<Operation> = match &self.previous_field_view {
+            // A previous version of this field existed already
+            Some(previous_field_view) => {
+                if previous_field_view.field_type() != &current_field_type {
+                    let operation = OperationBuilder::new(&SchemaId::SchemaFieldDefinition(1))
+                        .action(OperationAction::Update)
+                        .previous(previous_field_view.id()) // view_id
+                        .fields(&[("type", current_field_type.into())])
+                        .build()?;
+
+                    Some(operation)
+                } else {
+                    // Nothing has changed ..
+                    None
+                }
+            }
+
+            // This field did not exist before, let's create a new document!
+            None => {
+                let operation = OperationBuilder::new(&SchemaId::SchemaFieldDefinition(1))
+                    .action(OperationAction::Create)
+                    .fields(&[
+                        ("name", self.name.clone().into()),
+                        ("type", current_field_type.into()),
+                    ])
+                    .build()?;
+
+                Some(operation)
+            }
+        };
+
+        match operation {
+            Some(operation) => {
+                let entry_hash = executor.commit(&operation).await?;
+                Ok(entry_hash.into())
+            }
+            None => Ok(self
+                .previous_field_view
+                .as_ref()
+                .expect("Document to not be deleted")
+                .id() // view_id
+                .clone()),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -422,4 +614,22 @@ async fn get_diff(
         .collect();
 
     Ok(result)
+}
+
+async fn execute_plan(
+    store: MemoryStore,
+    key_pair: KeyPair,
+    plans: Vec<SchemaDiff>,
+) -> Result<Vec<Commit>> {
+    let mut executor = Executor {
+        store,
+        key_pair,
+        commits: Vec::new(),
+    };
+
+    for plan in plans {
+        plan.execute(&mut executor).await?;
+    }
+
+    Ok(executor.commits)
 }
