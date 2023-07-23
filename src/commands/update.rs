@@ -87,7 +87,10 @@ pub async fn update(
         print_plan(plan, previous_schemas, public_key)?;
 
         if Confirm::new()
-            .with_prompt("Do you want to commit these changes?")
+            .with_prompt(format!(
+                "Do you want to commit these changes ({} total)?",
+                commits.len()
+            ))
             .interact()?
         {
             // Write commits to lock file
@@ -332,7 +335,7 @@ impl Plan {
 ///
 /// The contained field definition documents are direct dependencies of the schema definition
 /// document.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 struct SchemaDiff {
     /// Name of the schema.
     name: SchemaName,
@@ -427,7 +430,7 @@ impl Executable for SchemaDiff {
 /// Information about the previous and current version of a field.
 ///
 /// A field of relation type links to a schema which is a direct dependency.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 struct FieldDiff {
     /// Name of the schema field.
     name: FieldName,
@@ -437,6 +440,15 @@ struct FieldDiff {
 
     /// Current version of the field type.
     current_field_type: FieldTypeDiff,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum FieldTypeDiff {
+    /// Basic schema field type.
+    Field(FieldType),
+
+    /// Relation field type linked to a schema.
+    Relation(RelationType, SchemaDiff),
 }
 
 #[async_trait]
@@ -451,11 +463,18 @@ impl Executable for FieldDiff {
 
             // Convert relation field types
             FieldTypeDiff::Relation(relation, schema_plan) => {
-                // Execute the linked schema of the relation first
-                let view_id = schema_plan.execute(executor).await?;
+                // Get id of schema this field relates to
+                let schema = executor.plans.iter().find(|plan| &plan.1 == schema_plan);
 
-                // After execution we receive the resulting schema id we can now use to link to it
-                let schema_id = SchemaId::new_application(&schema_plan.name, &view_id);
+                let schema_id = match schema {
+                    // Schema was already materialized
+                    Some(schema) => schema.0.clone(),
+                    // Materialize schema first
+                    None => {
+                        let view_id = schema_plan.execute(executor).await?;
+                        SchemaId::new_application(&schema_plan.name, &view_id)
+                    }
+                };
 
                 match relation {
                     RelationType::Relation => PandaFieldType::Relation(schema_id),
@@ -514,15 +533,6 @@ impl Executable for FieldDiff {
     }
 }
 
-#[derive(Clone, Debug)]
-enum FieldTypeDiff {
-    /// Basic schema field type.
-    Field(FieldType),
-
-    /// Relation field type linked to a schema.
-    Relation(RelationType, SchemaDiff),
-}
-
 /// Gathers the differences between the current and the previous versions and organises them in
 /// nested, topological order as some changes depend on each other.
 async fn get_diff(
@@ -551,18 +561,7 @@ async fn get_diff(
         }
     }
 
-    // After topological sorting we get a list of sorted schemas.
-    //
-    // The first time we "pop" from that list we get the high-level "dependency groups" which are
-    // self-contained as some of the schemas might not relate to each other.
-    //
-    // The order of these groups does not matter but for concistency we deterministically sort them
-    // by name of the first item in the list.
-    let mut grouped_schemas: Vec<SchemaName> = graph.pop_all();
-    grouped_schemas.sort();
-
-    // Now we "pop" the rest, to gather _all_ sorted schemas.
-    let mut sorted_schemas: Vec<SchemaName> = grouped_schemas.clone();
+    let mut sorted_schemas: Vec<SchemaName> = Vec::new();
     loop {
         let mut next = graph.pop_all();
 
@@ -580,12 +579,12 @@ async fn get_diff(
     // concrete changes required to get to the current version
     let mut schema_diffs: Vec<SchemaDiff> = Vec::new();
 
-    for current_schema_name in sorted_schemas {
+    for current_schema_name in &sorted_schemas {
         // Get the previous (if it exists) and current schema versions
-        let previous_schema = previous_schemas.get(&current_schema_name);
+        let previous_schema = previous_schemas.get(current_schema_name);
         let current_schema = current_schemas
             .iter()
-            .find(|item| item.name == current_schema_name)
+            .find(|item| &item.name == current_schema_name)
             // Since we sorted everything in topological order we can be sure that this exists
             .expect("Current schema needs to be given in array");
 
@@ -643,16 +642,14 @@ async fn get_diff(
         schema_diffs.push(schema_diff);
     }
 
-    // For each independent "schema group" we return one diff each. Every diff nests the required
-    // changes inside itself
-    let result = grouped_schemas
+    let result: Vec<SchemaDiff> = sorted_schemas
         .iter()
         .map(|group| {
             return schema_diffs
                 .iter()
                 .find(|diff| &diff.name == group)
                 .cloned()
-                .unwrap();
+                .expect("Diff exists at this point");
         })
         .collect();
 
@@ -940,7 +937,7 @@ fn write_to_lock_file(
         toml::to_string_pretty(&lock_file)?
     );
 
-    files::write_file(&lock_path, &lock_file_str)?;
+    files::write_file(lock_path, &lock_file_str)?;
 
     println!(
         "Successfully written {} new commits to schema.lock file",

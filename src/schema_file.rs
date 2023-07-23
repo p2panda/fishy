@@ -128,7 +128,7 @@ impl Display for SchemaField {
 }
 
 /// Definition of field type.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub enum FieldType {
     #[serde(rename = "bool")]
@@ -142,7 +142,7 @@ pub enum FieldType {
 }
 
 /// Definition of relation type.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum RelationType {
     Relation,
