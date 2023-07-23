@@ -42,7 +42,7 @@ enum Commands {
         schema_path: PathBuf,
 
         /// Path to the lock file with signed and encoded p2panda data.
-        #[arg(short = 'o', long = "output", default_value = "schema.lock")]
+        #[arg(short = 'l', long = "lock", default_value = "schema.lock")]
         lock_path: PathBuf,
 
         /// Path to the key pair file, storing a hex-encoded ed25519 private key.
@@ -55,6 +55,10 @@ enum Commands {
         /// GraphQL endpoint of p2panda node where schema gets deployed to.
         #[arg(short = 'e', long, default_value = "http://localhost:2020/graphql")]
         endpoint: String,
+
+        /// Path to the lock file with signed and encoded p2panda data.
+        #[arg(short = 'l', long = "lock", default_value = "schema.lock")]
+        lock_path: PathBuf,
     },
 }
 
@@ -80,7 +84,12 @@ async fn main() -> Result<()> {
                 .await
                 .with_context(|| "Could not create or update schema")?;
         }
-        Commands::Deploy { .. } => todo!(),
+        Commands::Deploy {
+            lock_path,
+            endpoint,
+        } => commands::deploy(lock_path, &endpoint)
+            .await
+            .with_context(|| "Could not publish schemas to node")?,
     }
 
     Ok(())
