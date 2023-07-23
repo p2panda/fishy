@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, bail, Result};
 use gql_client::Client;
+use indicatif::ProgressBar;
 use p2panda_rs::entry::decode::decode_entry;
 use p2panda_rs::entry::traits::AsEntry;
 use p2panda_rs::entry::{LogId, SeqNum};
@@ -31,6 +32,7 @@ pub async fn deploy(lock_path: PathBuf, endpoint: &str) -> Result<()> {
     // Count how many commits we needed to deploy
     let mut skipped = 0;
     let total = commits.len();
+    let progress = ProgressBar::new(total as u64);
 
     // Publish commits on external node via GraphQL
     let client = Client::new(endpoint);
@@ -65,6 +67,7 @@ pub async fn deploy(lock_path: PathBuf, endpoint: &str) -> Result<()> {
             // Check if node already knows about this commit
             if entry.seq_num() < &args.seq_num {
                 skipped += 1;
+                progress.inc(1);
 
                 // Skip this one
                 continue;
@@ -89,7 +92,11 @@ pub async fn deploy(lock_path: PathBuf, endpoint: &str) -> Result<()> {
             .query_unwrap::<PublishResponse>(&query)
             .await
             .map_err(|err| anyhow!("GraphQL request to node failed: {err}"))?;
+
+        progress.inc(1);
     }
+
+    println!();
 
     if total == skipped {
         println!("Node is already up-to-date with latest schema version. No deployment required.")
