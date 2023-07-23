@@ -11,6 +11,13 @@ repository = "https://github.com/p2panda/fishy"
 license = "AGPL-3.0-or-later"
 readme = "README.md"
 
+[profile.release]
+strip = true
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+
 [dependencies]
 anyhow = "1.0.72"
 async-trait = "0.1.72"
