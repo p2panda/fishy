@@ -7,6 +7,10 @@
 <br />
 
 <div align="center">
+  <img src="https://raw.githubusercontent.com/p2panda/fishy/main/example.gif" width="600" />
+</div>
+
+<div align="center">
   <h3>
     <a href="https://github.com/p2panda/fishy/releases">
       Releases
