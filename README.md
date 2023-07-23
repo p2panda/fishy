@@ -108,15 +108,11 @@ fishy deploy --endpoint http://localhost:2020/graphql
    update` again to apply them. The tool will again only show you exactly what
    you've changed and generate the commits for only exactly these changes. Try
    it out!
-5. You can also run `fishy update --inspect` if you don't want to committ
-   anything but you're curious about the current state of your schemas. Also it
-   is a good way to read the schema id's which are required for development of
-   your p2panda clients.
-6. Finally deploy the schema on one or many nodes by running `fishy deploy`.
+5. Finally deploy the schema on one or many nodes by running `fishy deploy`.
    Make sure you have a [node](https://github.com/p2panda/aquadoggo) running
    somewhere.
-7. You can share the `schema.lock` file with others, they will be able now to
-   deploy the schema's on their machines with this file.
+6. You can share the `schema.lock` file with others, they will be able now to
+   deploy the schema's on their nodes with this file.
 
 ## License
 
