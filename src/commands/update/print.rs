@@ -25,8 +25,11 @@ pub fn print_plan(
     plans: Vec<Plan>,
     previous_schemas: PreviousSchemas,
     public_key: PublicKey,
+    show_only_diff: bool,
 ) -> Result<()> {
-    println!("The following changes will be applied:\n");
+    if show_only_diff {
+        println!("The following changes will be applied:\n");
+    }
 
     for plan in plans {
         let schema_diff = plan.schema_diff();
@@ -159,10 +162,12 @@ pub fn print_plan(
             }
         }
 
-        // Skip this schema if nothing has changed
-        if let Some(previous_schema_id) = &previous_schema_id {
-            if previous_schema_id.version() == current_schema_id.version() {
-                continue;
+        // Skip printing this schema if nothing has changed
+        if show_only_diff {
+            if let Some(previous_schema_id) = &previous_schema_id {
+                if previous_schema_id.version() == current_schema_id.version() {
+                    continue;
+                }
             }
         }
 
@@ -173,7 +178,9 @@ pub fn print_plan(
         );
 
         if let Some(previous_schema_id) = &previous_schema_id {
-            println!("Previously: {previous_schema_id}");
+            if previous_schema_id.version() != current_schema_id.version() {
+                println!("Previously: {previous_schema_id}");
+            }
         }
 
         // Display name

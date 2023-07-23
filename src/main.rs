@@ -38,7 +38,7 @@ enum Commands {
     /// Automatically creates and signs p2panda data from a key pair and the defined schemas.
     Update {
         /// Path to the schema definition file.
-        #[arg(short = 'i', long = "input", default_value = "schema.toml")]
+        #[arg(short = 's', long = "schema", default_value = "schema.toml")]
         schema_path: PathBuf,
 
         /// Path to the lock file with signed and encoded p2panda data.
@@ -48,6 +48,10 @@ enum Commands {
         /// Path to the key pair file, storing a hex-encoded ed25519 private key.
         #[arg(short = 'k', long = "key", default_value = "secret.txt")]
         private_key_path: PathBuf,
+
+        /// Show current state without committing any changes.
+        #[arg(short = 'i', long = "inspect", action=clap::ArgAction::SetTrue)]
+        only_show_plan_and_exit: bool,
     },
 
     /// Deploy created schemas on a node.
@@ -79,10 +83,17 @@ async fn main() -> Result<()> {
             schema_path,
             lock_path,
             private_key_path,
+            only_show_plan_and_exit,
         } => {
-            commands::update(store, schema_path, lock_path, private_key_path)
-                .await
-                .with_context(|| "Could not create or update schema")?;
+            commands::update(
+                store,
+                schema_path,
+                lock_path,
+                private_key_path,
+                only_show_plan_and_exit,
+            )
+            .await
+            .with_context(|| "Could not create or update schema")?;
         }
         Commands::Deploy {
             lock_path,

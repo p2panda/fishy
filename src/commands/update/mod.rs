@@ -31,6 +31,7 @@ pub async fn update(
     schema_path: PathBuf,
     lock_path: PathBuf,
     private_key_path: PathBuf,
+    only_show_plan_and_exit: bool,
 ) -> Result<()> {
     print_title("Create operations and sign entries to update schema");
     print_variable("schema_path", absolute_path(&schema_path)?.display());
@@ -66,11 +67,18 @@ pub async fn update(
     // Execute plan on the diff
     let (commits, plan) = execute_plan(store, key_pair, diff).await?;
 
+    // We can also choose to only show the plan and exit directly, without committing any changes.
+    // This is useful if we want to find out the schema id and state
+    if only_show_plan_and_exit {
+        print_plan(plan, previous_schemas, public_key, false)?;
+        return Ok(());
+    }
+
     if commits.is_empty() {
         println!("No new changes to commit.");
     } else {
-        // Show plan and ask user for confirmation of changes
-        print_plan(plan, previous_schemas, public_key)?;
+        // Show plan to user and ask for confirmation
+        print_plan(plan, previous_schemas, public_key, true)?;
 
         if Confirm::new()
             .with_prompt(format!(
