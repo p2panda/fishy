@@ -60,7 +60,7 @@ pub async fn deploy(lock_path: PathBuf, endpoint: &str) -> Result<()> {
         if let Ok(result) = response {
             let args = result.next_args;
 
-            if entry.log_id() != &args.log_id || Some(commit.entry_hash) != args.backlink {
+            if entry.log_id() != &args.log_id {
                 bail!("Inconsistency between local commits and node detected");
             }
 
