@@ -7,7 +7,9 @@
 <br />
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/p2panda/fishy/main/example.gif" width="600" />
+  <a href="https://www.youtube.com/watch?v=buJZeQAmrq8" target="_blank">
+    <img src="https://raw.githubusercontent.com/p2panda/fishy/main/example.gif" width="600" />
+  </a>
 </div>
 
 <div align="center">
