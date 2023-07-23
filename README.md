@@ -101,11 +101,11 @@ cp ./target/release/fishy ~/.local/bin
 
 1. Initialise a new schema by running `fishy init`. A dialogue will ask you for
    the name of your first schema. Enter a name, for example `cafe` and press
-   enter. You will now find a `schema.toml` file and a `secret.txt` file in
+   enter. You will now find a `schema.toml` and `secret.txt` file in
    your folder.
-2. Edit the `schema.toml` file with any text editor. Follow the format to
-   specify multiple schemas, their fields, types and relations to each other.
-   For example:
+2. Edit `schema.toml` with any text editor. Follow the format to specify
+   multiple schemas, their fields, types and relations to each other. For
+   example:
    ```toml
    [cafe]
    description = "A list of cafes"
@@ -123,21 +123,19 @@ cp ./target/release/fishy ~/.local/bin
    sweetness = { type = "str" }
    cafes = { type = "relation_list", schema = { name = "cafe" } }
    ```
-3. You can commit these changes now to a `schema.lock` file by running `fishy
-   update`. The tool will automatically show you the changes which will be
-   committed and ask for your confirmation. Hit `y` to confirm. This step will
-   generate, encode and sign the commits with your private key stored in
-   `secret.txt`.
-4. This version of the schema sits now in the `schema.lock` file. You can go
-   back to the `schema.toml` file and do any changes to the schema, run `fishy
-   update` again to apply them. The tool will again only show you exactly what
-   you've changed and generate the commits for only exactly these changes. Try
-   it out!
+3. You can commit these changes now to `schema.lock` by running `fishy update`.
+   The tool will automatically show you the changes which will be committed and
+   ask for your confirmation. Hit `y` to confirm. This step will generate,
+   encode and sign the commits with your private key stored in `secret.txt`.
+4. This version of the schema lives now in `schema.lock`. You can go back to
+   the `schema.toml` file and do any changes to the schema, run `fishy update`
+   again to apply them. The tool will again only show you exactly what you've
+   changed and generate the commits for only exactly these changes. Try it out!
 5. Finally deploy the schema on one or many nodes by running `fishy deploy`.
    Make sure you have a [node](https://github.com/p2panda/aquadoggo) running
    somewhere.
-6. You can share the `schema.lock` file with others, they will be able now to
-   deploy the schema's on their nodes with this file.
+6. Share the `schema.lock` file with others, with it they will be able to
+   deploy the schemas on their nodes!
 
 ## License
 
