@@ -24,6 +24,24 @@
 
 <br/>
 
+## Usage
+
+```
+Create, manage and deploy p2panda schemas
+
+Usage: fishy <COMMAND>
+
+Commands:
+  init    Initialises all files for a new fishy project in a given folder
+  update  Automatically creates and signs p2panda data from a key pair and the defined schemas
+  deploy  Deploy created schemas on a node
+  help    Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help     Print help
+  -V, --version  Print version
+```
+
 ## License
 
 GNU Affero General Public License v3.0 [`AGPL-3.0-or-later`](LICENSE)
