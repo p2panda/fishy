@@ -28,10 +28,15 @@ pub fn print_plan(
     show_only_diff: bool,
 ) -> Result<()> {
     if show_only_diff {
-        println!("The following changes will be applied:\n");
+        println!(
+            "The following changes ({}, {}, {}) will be applied:\n",
+            style("add").green(),
+            style("change").yellow(),
+            style("remove").red()
+        );
     }
 
-    for plan in plans {
+    for plan in &plans {
         let schema_diff = plan.schema_diff();
 
         // Schema id
@@ -172,9 +177,23 @@ pub fn print_plan(
         }
 
         // Display schema id
+        let color = match &previous_schema_id {
+            Some(previous_schema_id) => {
+                if previous_schema_id != &current_schema_id {
+                    console::Color::Yellow
+                } else {
+                    console::Color::White
+                }
+            }
+            None => console::Color::Green,
+        };
+
         println!(
             "{}",
-            style(format!("{current_schema_id}")).bold().underlined(),
+            style(format!("{current_schema_id}"))
+                .bold()
+                .underlined()
+                .fg(color),
         );
 
         if let Some(previous_schema_id) = &previous_schema_id {
@@ -226,7 +245,18 @@ pub fn print_plan(
                 (None, Some(_)) => Color::Red,
                 (Some(_), None) => Color::Green,
                 (Some(current), Some(previous)) => {
-                    if current != previous {
+                    // Was the schema changed this field refers to?
+                    let schema_changed = if let SchemaField::Relation { schema, .. } = current {
+                        if let RelationId::Name(name) = &schema.id {
+                            plans.iter().any(|plan| &plan.schema_id().name() == name)
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    };
+
+                    if current != previous || schema_changed {
                         Color::Yellow
                     } else {
                         Color::White

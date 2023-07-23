@@ -82,7 +82,7 @@ impl SchemaFields {
 }
 
 /// Definition of a single schema field.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(untagged, deny_unknown_fields)]
 pub enum SchemaField {
     /// This field is either a string, integer, float or boolean.
@@ -155,7 +155,7 @@ pub enum RelationType {
 ///
 /// A schema can be either identified by its name or schema id while the schema definition itself
 /// can either be in the same file, in an external file or remote git repository.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RelationSchema {
     #[serde(flatten)]
@@ -165,7 +165,7 @@ pub struct RelationSchema {
 }
 
 /// Identifier of schema.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase", deny_unknown_fields)]
 pub enum RelationId {
     /// Name from schema defined in the same document.
@@ -178,7 +178,7 @@ pub enum RelationId {
 /// Definition of schema source.
 ///
 /// If no external schema was defined we can assume the schema was defined in the same file.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase", deny_unknown_fields)]
 pub enum RelationSource {
     /// Cloneable git repository URL from external machine.
