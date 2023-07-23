@@ -78,6 +78,25 @@ fishy update --inspect
 fishy deploy --endpoint http://localhost:2020/graphql
 ```
 
+## Install
+
+We currently do not publish any pre-compiled binaries of `fishy` (but will in
+the near future). For now you can compile `fishy` yourself given that you have
+a [Rust](https://www.rust-lang.org/learn/get-started) development environment
+on your machine installed.
+
+```bash
+# Download source code
+git clone https://github.com/p2panda/fishy.git
+cd fishy
+
+# Compile binary
+cargo build --release
+
+# Copy binary into your path (for example)
+cp ./target/release/fishy ~/.local/bin
+```
+
 ## Tutorial
 
 1. Initialise a new schema by running `fishy init`. A dialogue will ask you for
