@@ -19,7 +19,7 @@ use crate::utils::files;
 /// [event.fields]
 /// date = { type = "int" }
 /// title = { type = "str" }
-/// venue = { type = "relation", schema = { "name" = "venue" } }
+/// venue = { type = "relation", schema = { name = "venue" } }
 ///
 /// [venue]
 /// description = "Another schema"
