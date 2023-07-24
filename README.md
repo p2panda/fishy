@@ -30,16 +30,14 @@
 
 <br/>
 
-Command-line-tool to easily create and update your [`p2panda`] schemas and
-deploy them on a node. 
+Command-line-tool to easily create update and share your [`p2panda`] schemas.
 
-`fishy` calculates the current version of your schemas and matches it with the
-previous versions, it shows the difference and applies the changes
-automatically.
+`fishy` parses your current version of your schemas and matches it with
+previous ones to calculate the difference and apply changes automatically.
 
-Your schema changes are committed to a `schema.lock` file which you can now
-give to others. With `fishy` they will be able to deploy the same schema on
-their nodes.
+Your schema changes are committed to a `schema.lock` file which you can share
+with other developers. With `fishy` they will be able to deploy the same schema
+on their nodes.
 
 ## Usage
 
@@ -62,7 +60,7 @@ Options:
 ## Examples
 
 ```bash
-# Initialise a new schema, this will create a `schema.toml` file you can edit
+# Initialise a new schema, this creates a `schema.toml` file you can edit
 fishy init
 
 # Same as above, but in a different folder and with the name already defined
@@ -80,10 +78,16 @@ fishy deploy --endpoint http://localhost:2020/graphql
 
 ## Install
 
-We currently do not publish any pre-compiled binaries of `fishy` (but will in
-the near future). For now you can compile `fishy` yourself given that you have
-a [Rust](https://www.rust-lang.org/learn/get-started) development environment
-on your machine installed.
+### Pre-compiled binaries
+
+Check out our [Releases](releases) section.
+
+### Compile it yourself
+
+For the following steps you need a
+[Rust](https://www.rust-lang.org/learn/get-started) development environment on
+your machine.
+
 
 ```bash
 # Download source code
