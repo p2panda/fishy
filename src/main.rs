@@ -36,7 +36,7 @@ enum Commands {
     },
 
     /// Automatically creates and signs p2panda data from a key pair and the defined schemas.
-    Update {
+    Build {
         /// Path to the schema definition file.
         #[arg(short = 's', long = "schema", default_value = "schema.toml")]
         schema_path: PathBuf,
@@ -79,13 +79,13 @@ async fn main() -> Result<()> {
             commands::init(target_dir, schema_name)
                 .with_context(|| "Could not initialise new fishy project")?;
         }
-        Commands::Update {
+        Commands::Build {
             schema_path,
             lock_path,
             private_key_path,
             only_show_plan_and_exit,
         } => {
-            commands::update(
+            commands::build(
                 store,
                 schema_path,
                 lock_path,

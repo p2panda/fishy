@@ -13,12 +13,12 @@ use anyhow::{bail, Result};
 use dialoguer::Confirm;
 use p2panda_rs::test_utils::memory_store::MemoryStore;
 
-use crate::commands::update::current::get_current_schemas;
-use crate::commands::update::diff::get_diff;
-use crate::commands::update::executor::execute_plan;
-use crate::commands::update::previous::get_previous_schemas;
-use crate::commands::update::print::print_plan;
-use crate::commands::update::write::write_to_lock_file;
+use crate::commands::build::current::get_current_schemas;
+use crate::commands::build::diff::get_diff;
+use crate::commands::build::executor::execute_plan;
+use crate::commands::build::previous::get_previous_schemas;
+use crate::commands::build::print::print_plan;
+use crate::commands::build::write::write_to_lock_file;
 use crate::lock_file::LockFile;
 use crate::schema_file::SchemaFile;
 use crate::utils::files::absolute_path;
@@ -26,7 +26,7 @@ use crate::utils::key_pair;
 use crate::utils::terminal::{print_title, print_variable};
 
 /// Automatically creates and signs p2panda data from a key pair and the defined schemas.
-pub async fn update(
+pub async fn build(
     store: MemoryStore,
     schema_path: PathBuf,
     lock_path: PathBuf,

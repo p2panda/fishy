@@ -48,7 +48,7 @@ Usage: fishy <COMMAND>
 
 Commands:
   init    Initialises all files for a new fishy project in a given folder
-  update  Automatically creates and signs p2panda data from a key pair and the defined schemas
+  build   Automatically creates and signs p2panda data from a key pair and the defined schemas
   deploy  Deploy created schemas on a node
   help    Print this message or the help of the given subcommand(s)
 
@@ -67,10 +67,10 @@ fishy init
 fishy init -n icecream ~/dev/schemas
 
 # Commit any changes to the schema, this updates your `schema.lock` file
-fishy update
+fishy build
 
 # Only inspect the current status of your schemas, do not commit anything
-fishy update --inspect
+fishy build --inspect
 
 # Deploy commits to external node
 fishy deploy --endpoint http://localhost:2020/graphql
@@ -127,12 +127,12 @@ cp ./target/release/fishy ~/.local/bin
    sweetness = { type = "str" }
    cafes = { type = "relation_list", schema = { name = "cafe" } }
    ```
-3. You can commit these changes now to `schema.lock` by running `fishy update`.
+3. You can commit these changes now to `schema.lock` by running `fishy build`.
    The tool will automatically show you the changes which will be committed and
    ask for your confirmation. Hit `y` to confirm. This step will generate,
    encode and sign the commits with your private key stored in `secret.txt`.
 4. This version of the schema lives now in `schema.lock`. You can go back to
-   the `schema.toml` file and do any changes to the schema, run `fishy update`
+   the `schema.toml` file and do any changes to the schema, run `fishy build`
    again to apply them. The tool will again only show you exactly what you've
    changed and generate the commits for only exactly these changes. Try it out!
 5. Finally deploy the schema on one or many nodes by running `fishy deploy`.
