@@ -9,7 +9,7 @@ use comfy_table::{Cell, Color, Table};
 use console::style;
 use p2panda_rs::identity::PublicKey;
 use p2panda_rs::schema::{
-    FieldName, FieldType as PandaFieldType, SchemaDescription, SchemaId, SchemaName,
+    FieldName, FieldType as PandaFieldType, SchemaDescription, SchemaId, SchemaName, SchemaVersion,
 };
 
 use crate::schema_file::{
@@ -240,6 +240,19 @@ pub fn print_plan(
             .apply_modifier(UTF8_ROUND_CORNERS)
             .set_header(vec!["#", "Field Name", "Field Type"]);
 
+        let did_schema_change = |name: &SchemaName| -> bool {
+            match plans.iter().find(|plan| &plan.schema_id().name() == name) {
+                Some(plan) => match plan.schema_diff().previous_schema_view {
+                    Some(previous_view) => match plan.schema_id().version() {
+                        SchemaVersion::Application(view_id) => previous_view.view_id() != &view_id,
+                        _ => false,
+                    },
+                    None => false,
+                },
+                None => false,
+            }
+        };
+
         for (index, (field_name, (current_field, previous_field))) in fields.iter().enumerate() {
             let color = match (current_field, previous_field) {
                 (None, Some(_)) => Color::Red,
@@ -248,7 +261,7 @@ pub fn print_plan(
                     // Was the schema changed this field refers to?
                     let schema_changed = if let SchemaField::Relation { schema, .. } = current {
                         if let RelationId::Name(name) = &schema.id {
-                            plans.iter().any(|plan| &plan.schema_id().name() == name)
+                            did_schema_change(name)
                         } else {
                             false
                         }
