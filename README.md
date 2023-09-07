@@ -80,7 +80,7 @@ fishy deploy --endpoint http://localhost:2020/graphql
 
 ### Pre-compiled binaries
 
-Check out our [Releases](releases) section.
+Check out our [Releases](https://github.com/p2panda/fishy/releases) section.
 
 ### Compile it yourself
 
