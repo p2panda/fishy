@@ -121,6 +121,8 @@ pub fn print_plan(
                         PandaFieldType::Bytes => SchemaField::Field {
                             field_type: FieldType::Bytes,
                         },
+                        // Use `RelationId::Id(schema_id)` for all relation types to make them
+                        // easily comparable
                         PandaFieldType::Relation(schema_id) => SchemaField::Relation {
                             field_type: RelationType::Relation,
                             schema: RelationSchema {
