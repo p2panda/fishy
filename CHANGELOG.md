@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Improved error messages for missing files [#7](https://github.com/p2panda/fishy/pull/7)
+
 ## [0.1.0]
 
 * Initial release
