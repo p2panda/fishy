@@ -106,6 +106,7 @@ impl Display for SchemaField {
                 FieldType::Float => "float",
                 FieldType::Integer => "int",
                 FieldType::String => "str",
+                FieldType::Bytes => "bytes",
             }
             .to_string(),
             SchemaField::Relation { field_type, schema } => {
@@ -139,6 +140,8 @@ pub enum FieldType {
     Integer,
     #[serde(rename = "str")]
     String,
+    #[serde(rename = "bytes")]
+    Bytes,
 }
 
 /// Definition of relation type.
@@ -168,11 +171,11 @@ pub struct RelationSchema {
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase", deny_unknown_fields)]
 pub enum RelationId {
-    /// Name from schema defined in the same document.
-    Name(SchemaName),
-
     /// Schema id from schema defined in the same document or externally.
     Id(SchemaId),
+
+    /// Name from schema defined in the same document.
+    Name(SchemaName),
 }
 
 /// Definition of schema source.

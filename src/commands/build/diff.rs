@@ -2,7 +2,7 @@
 
 use anyhow::{bail, Result};
 use p2panda_rs::schema::system::{SchemaFieldView, SchemaView};
-use p2panda_rs::schema::{FieldName, SchemaDescription, SchemaName};
+use p2panda_rs::schema::{FieldName, SchemaDescription, SchemaId, SchemaName};
 use topological_sort::TopologicalSort;
 
 use crate::schema_file::{FieldType, RelationId, RelationType, SchemaField};
@@ -32,7 +32,9 @@ pub async fn get_diff(
                     RelationId::Name(linked_schema) => {
                         graph.add_dependency(linked_schema.clone(), current_schema.name.clone());
                     }
-                    RelationId::Id(_) => bail!("Relating to schemas via `id` is not supported yet"),
+                    RelationId::Id(schema_id) => {
+                        // @TODO: Is it fine to do nothing here?
+                    }
                 }
             }
         }
@@ -83,7 +85,9 @@ pub async fn get_diff(
 
                         FieldTypeDiff::Relation(field_type.clone(), schema_diff.clone())
                     }
-                    RelationId::Id(_) => bail!("Relating to schemas via `id` is not supported yet"),
+                    RelationId::Id(schema_id) => {
+                        FieldTypeDiff::ExternalRelation(field_type.clone(), schema_id.to_owned())
+                    }
                 },
             };
 
@@ -174,4 +178,7 @@ pub enum FieldTypeDiff {
 
     /// Relation field type linked to a schema.
     Relation(RelationType, SchemaDiff),
+
+    /// Relation field type linked to an external schema which is not defined in this context.
+    ExternalRelation(RelationType, SchemaId),
 }

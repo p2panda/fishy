@@ -9,7 +9,7 @@ use comfy_table::{Cell, Color, Table};
 use console::style;
 use p2panda_rs::identity::PublicKey;
 use p2panda_rs::schema::{
-    FieldName, FieldType as PandaFieldType, SchemaDescription, SchemaId, SchemaName, SchemaVersion,
+    FieldName, FieldType as PandaFieldType, SchemaDescription, SchemaId, SchemaName,
 };
 
 use crate::schema_file::{
@@ -73,6 +73,18 @@ pub fn print_plan(
                             external: None,
                         },
                     },
+                    FieldTypeDiff::ExternalRelation(field_type, schema_id) => {
+                        SchemaField::Relation {
+                            field_type,
+                            schema: RelationSchema {
+                                id: RelationId::Id(schema_id),
+                                // Even though this is an external relation we set this to `None`
+                                // here as this field indicates that the schema definition came
+                                // from an (external) git or file system path.
+                                external: None,
+                            },
+                        }
+                    }
                 };
 
                 fields.insert(&field.name, &schema_field);
@@ -106,24 +118,27 @@ pub fn print_plan(
                         PandaFieldType::String => SchemaField::Field {
                             field_type: FieldType::String,
                         },
+                        PandaFieldType::Bytes => SchemaField::Field {
+                            field_type: FieldType::Bytes,
+                        },
                         PandaFieldType::Relation(schema_id) => SchemaField::Relation {
                             field_type: RelationType::Relation,
                             schema: RelationSchema {
-                                id: RelationId::Name(schema_id.name()),
+                                id: RelationId::Id(schema_id.to_owned()),
                                 external: None,
                             },
                         },
                         PandaFieldType::RelationList(schema_id) => SchemaField::Relation {
                             field_type: RelationType::RelationList,
                             schema: RelationSchema {
-                                id: RelationId::Name(schema_id.name()),
+                                id: RelationId::Id(schema_id.to_owned()),
                                 external: None,
                             },
                         },
                         PandaFieldType::PinnedRelation(schema_id) => SchemaField::Relation {
                             field_type: RelationType::PinnedRelation,
                             schema: RelationSchema {
-                                id: RelationId::Name(schema_id.name()),
+                                id: RelationId::Id(schema_id.to_owned()),
                                 external: None,
                             },
                         },
@@ -240,36 +255,12 @@ pub fn print_plan(
             .apply_modifier(UTF8_ROUND_CORNERS)
             .set_header(vec!["#", "Field Name", "Field Type"]);
 
-        let did_schema_change = |name: &SchemaName| -> bool {
-            match plans.iter().find(|plan| &plan.schema_id().name() == name) {
-                Some(plan) => match plan.schema_diff().previous_schema_view {
-                    Some(previous_view) => match plan.schema_id().version() {
-                        SchemaVersion::Application(view_id) => previous_view.view_id() != &view_id,
-                        _ => false,
-                    },
-                    None => false,
-                },
-                None => false,
-            }
-        };
-
         for (index, (field_name, (current_field, previous_field))) in fields.iter().enumerate() {
             let color = match (current_field, previous_field) {
                 (None, Some(_)) => Color::Red,
                 (Some(_), None) => Color::Green,
                 (Some(current), Some(previous)) => {
-                    // Was the schema changed this field refers to?
-                    let schema_changed = if let SchemaField::Relation { schema, .. } = current {
-                        if let RelationId::Name(name) = &schema.id {
-                            did_schema_change(name)
-                        } else {
-                            false
-                        }
-                    } else {
-                        false
-                    };
-
-                    if current != previous || schema_changed {
+                    if current != previous {
                         Color::Yellow
                     } else {
                         Color::White
