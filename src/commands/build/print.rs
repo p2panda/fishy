@@ -36,6 +36,13 @@ pub fn print_plan(
         );
     }
 
+    let get_schema_id_by_name = |name: &SchemaName| -> Option<SchemaId> {
+        plans
+            .iter()
+            .find(|plan| &plan.schema_id().name() == name)
+            .map(|plan| plan.schema_id())
+    };
+
     for plan in &plans {
         let schema_diff = plan.schema_diff();
 
@@ -69,7 +76,10 @@ pub fn print_plan(
                     FieldTypeDiff::Relation(field_type, schema_diff) => SchemaField::Relation {
                         field_type,
                         schema: RelationSchema {
-                            id: RelationId::Name(schema_diff.name.clone()),
+                            id: RelationId::Id(
+                                get_schema_id_by_name(&schema_diff.name)
+                                    .expect("schema should be known"),
+                            ),
                             external: None,
                         },
                     },
