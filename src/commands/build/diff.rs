@@ -32,8 +32,8 @@ pub async fn get_diff(
                     RelationId::Name(linked_schema) => {
                         graph.add_dependency(linked_schema.clone(), current_schema.name.clone());
                     }
-                    RelationId::Id(schema_id) => {
-                        // @TODO: Is it fine to do nothing here?
+                    RelationId::Id(_) => {
+                        // Do nothing here, external schemas are not a direct dependency
                     }
                 }
             }
