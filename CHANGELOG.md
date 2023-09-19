@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+* Allow relating to schemas via `id` [#4](https://github.com/p2panda/fishy/issues/4)
+
 ## [0.1.0]
 
 * Initial release

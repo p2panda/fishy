@@ -190,6 +190,7 @@ impl Executable for FieldDiff {
             FieldTypeDiff::Field(FieldType::Boolean) => PandaFieldType::Boolean,
             FieldTypeDiff::Field(FieldType::Float) => PandaFieldType::Float,
             FieldTypeDiff::Field(FieldType::Integer) => PandaFieldType::Integer,
+            FieldTypeDiff::Field(FieldType::Bytes) => PandaFieldType::Bytes,
 
             // Convert relation field types
             FieldTypeDiff::Relation(relation, schema_plan) => {
@@ -208,6 +209,19 @@ impl Executable for FieldDiff {
                         SchemaId::new_application(&schema_plan.name, &view_id)
                     }
                 };
+
+                match relation {
+                    RelationType::Relation => PandaFieldType::Relation(schema_id),
+                    RelationType::RelationList => PandaFieldType::RelationList(schema_id),
+                    RelationType::PinnedRelation => PandaFieldType::PinnedRelation(schema_id),
+                    RelationType::PinnedRelationList => {
+                        PandaFieldType::PinnedRelationList(schema_id)
+                    }
+                }
+            }
+
+            FieldTypeDiff::ExternalRelation(relation, schema_id) => {
+                let schema_id = schema_id.to_owned();
 
                 match relation {
                     RelationType::Relation => PandaFieldType::Relation(schema_id),
