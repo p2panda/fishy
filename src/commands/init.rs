@@ -86,7 +86,9 @@ fn init_secret_file(target_dir: &Path) -> Result<()> {
     let mut path = target_dir.to_path_buf();
     path.push(PRIVATE_KEY_FILE_NAME);
 
-    write_key_pair(&path, &key_pair)?;
+    if !path.exists() {
+        write_key_pair(&path, &key_pair)?;
+    }
 
     Ok(())
 }
