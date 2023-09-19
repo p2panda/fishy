@@ -63,7 +63,7 @@ fn sanity_check(target_dir: &Path) -> Result<()> {
     }
 
     // Check if files already exist
-    [PRIVATE_KEY_FILE_NAME, SCHEMA_FILE_NAME, LOCK_FILE_NAME]
+    [SCHEMA_FILE_NAME, LOCK_FILE_NAME]
         .iter()
         .try_for_each(|file_name| {
             let mut path = target_dir.to_path_buf();
