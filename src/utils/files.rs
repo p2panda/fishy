@@ -5,7 +5,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use path_clean::PathClean;
 
 /// Returns the absolute path of a file or directory.
@@ -32,7 +32,7 @@ pub fn write_file(path: impl AsRef<Path>, content: &str) -> Result<()> {
 /// Helper method to read a string from a file.
 pub fn read_file(path: impl AsRef<Path>) -> Result<String> {
     let mut buf = String::new();
-    let mut file = File::open(path)?;
+    let mut file = File::open(path).map_err(|_| anyhow!("Could not open file"))?;
     file.read_to_string(&mut buf)?;
     Ok(buf)
 }

@@ -9,7 +9,7 @@ mod write;
 
 use std::path::PathBuf;
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use dialoguer::Confirm;
 use p2panda_rs::test_utils::memory_store::MemoryStore;
 
@@ -43,7 +43,10 @@ pub async fn build(
     println!();
 
     // Load schema file
-    let schema_file = SchemaFile::from_path(&schema_path)?;
+    let schema_file = SchemaFile::from_path(&schema_path).context(format!(
+        "Try reading schema file from path '{}'",
+        schema_path.display()
+    ))?;
     if schema_file.iter().len() == 0 {
         bail!("Schema file is empty");
     }
@@ -56,7 +59,10 @@ pub async fn build(
     };
 
     // Load key pair
-    let key_pair = key_pair::read_key_pair(&private_key_path)?;
+    let key_pair = key_pair::read_key_pair(&private_key_path).context(format!(
+        "Try reading private key file from path '{}'",
+        private_key_path.display()
+    ))?;
     let public_key = key_pair.public_key();
 
     // Calculate diff between previous and current version
