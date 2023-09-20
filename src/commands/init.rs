@@ -21,31 +21,58 @@ pub fn init(target_dir: PathBuf, schema_name: Option<String>) -> Result<()> {
     // Make sure everything is okay
     sanity_check(&target_dir)?;
 
-    // Ask user about the schema name when none was given
-    let schema_name = match schema_name {
-        Some(name) => {
-            print_variable("schema_name", &name);
-
-            if !validate_name(&name) {
-                bail!("'{name}' is not a valid p2panda schema name");
-            }
-
-            name
-        }
-        None => Input::new()
-            .with_prompt("? Name of your schema")
-            .validate_with(|input: &String| -> Result<()> {
-                if !validate_name(input) {
-                    bail!("This is not a valid p2panda schema name");
-                }
-
-                Ok(())
-            })
-            .interact()?,
+    let schema_path = {
+        let mut path = target_dir.to_path_buf();
+        path.push(SCHEMA_FILE_NAME);
+        path
     };
 
-    init_secret_file(&target_dir)?;
-    init_schema_file(&target_dir, &schema_name)?;
+    let key_pair_path = {
+        let mut path = target_dir.to_path_buf();
+        path.push(PRIVATE_KEY_FILE_NAME);
+        path
+    };
+
+    if !key_pair_path.exists() {
+        init_secret_file(&key_pair_path)?;
+    } else {
+        println!(
+            "Do not create {} file as it already exists",
+            PRIVATE_KEY_FILE_NAME
+        );
+    }
+
+    if !schema_path.exists() {
+        // Ask user about the schema name when none was given
+        let schema_name = match schema_name {
+            Some(name) => {
+                print_variable("schema_name", &name);
+
+                if !validate_name(&name) {
+                    bail!("'{name}' is not a valid p2panda schema name");
+                }
+
+                name
+            }
+            None => Input::new()
+                .with_prompt("? Name of your schema")
+                .validate_with(|input: &String| -> Result<()> {
+                    if !validate_name(input) {
+                        bail!("This is not a valid p2panda schema name");
+                    }
+
+                    Ok(())
+                })
+                .interact()?,
+        };
+
+        init_schema_file(&schema_path, &schema_name)?;
+    } else {
+        println!(
+            "Do not create {} file as it already exists",
+            SCHEMA_FILE_NAME
+        );
+    }
 
     println!("Successfully initialised new fishy project in target directory");
 
@@ -66,43 +93,24 @@ fn sanity_check(target_dir: &Path) -> Result<()> {
 }
 
 /// Creates a file with a newly generated ed25519 private key inside.
-fn init_secret_file(target_dir: &Path) -> Result<()> {
+fn init_secret_file(key_pair_path: &Path) -> Result<()> {
     let key_pair = KeyPair::new();
-
-    let mut path = target_dir.to_path_buf();
-    path.push(PRIVATE_KEY_FILE_NAME);
-
-    if !path.exists() {
-        write_key_pair(&path, &key_pair)?;
-    } else {
-        println!("Do not create private key file as it already exists");
-    }
-
+    write_key_pair(&key_pair_path, &key_pair)?;
     Ok(())
 }
 
 /// Creates a new schema file from a small template.
-fn init_schema_file(target_dir: &Path, schema_name: &str) -> Result<()> {
-    let schema_path = {
-        let mut path = target_dir.to_path_buf();
-        path.push(SCHEMA_FILE_NAME);
-        path
-    };
-
-    if !schema_path.exists() {
-        write_file(
-            schema_path,
-            &format!(
-                r#"[{schema_name}]
+fn init_schema_file(schema_path: &Path, schema_name: &str) -> Result<()> {
+    write_file(
+        schema_path,
+        &format!(
+            r#"[{schema_name}]
 description = "Write about your schema here"
 
 [{schema_name}.fields]
 some_field = {{ type = "str" }}"#
-            ),
-        )?;
-    } else {
-        println!("Do not create schema file as it already exists");
-    }
+        ),
+    )?;
 
     Ok(())
 }
