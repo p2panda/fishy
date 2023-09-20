@@ -7,7 +7,7 @@ use dialoguer::Input;
 use p2panda_rs::identity::KeyPair;
 use p2panda_rs::schema::validate::validate_name;
 
-use crate::constants::{LOCK_FILE_NAME, PRIVATE_KEY_FILE_NAME, SCHEMA_FILE_NAME};
+use crate::constants::{PRIVATE_KEY_FILE_NAME, SCHEMA_FILE_NAME};
 use crate::utils::files::{absolute_path, write_file};
 use crate::utils::key_pair::write_key_pair;
 use crate::utils::terminal::{print_title, print_variable};
@@ -21,31 +21,58 @@ pub fn init(target_dir: PathBuf, schema_name: Option<String>) -> Result<()> {
     // Make sure everything is okay
     sanity_check(&target_dir)?;
 
-    // Ask user about the schema name when none was given
-    let schema_name = match schema_name {
-        Some(name) => {
-            print_variable("schema_name", &name);
-
-            if !validate_name(&name) {
-                bail!("'{name}' is not a valid p2panda schema name");
-            }
-
-            name
-        }
-        None => Input::new()
-            .with_prompt("? Name of your schema")
-            .validate_with(|input: &String| -> Result<()> {
-                if !validate_name(input) {
-                    bail!("This is not a valid p2panda schema name");
-                }
-
-                Ok(())
-            })
-            .interact()?,
+    let schema_path = {
+        let mut path = target_dir.to_path_buf();
+        path.push(SCHEMA_FILE_NAME);
+        path
     };
 
-    init_secret_file(&target_dir)?;
-    init_schema_file(&target_dir, &schema_name)?;
+    let key_pair_path = {
+        let mut path = target_dir.to_path_buf();
+        path.push(PRIVATE_KEY_FILE_NAME);
+        path
+    };
+
+    if !key_pair_path.exists() {
+        init_secret_file(&key_pair_path)?;
+    } else {
+        println!(
+            "Do not create {} file as it already exists",
+            PRIVATE_KEY_FILE_NAME
+        );
+    }
+
+    if !schema_path.exists() {
+        // Ask user about the schema name when none was given
+        let schema_name = match schema_name {
+            Some(name) => {
+                print_variable("schema_name", &name);
+
+                if !validate_name(&name) {
+                    bail!("'{name}' is not a valid p2panda schema name");
+                }
+
+                name
+            }
+            None => Input::new()
+                .with_prompt("? Name of your schema")
+                .validate_with(|input: &String| -> Result<()> {
+                    if !validate_name(input) {
+                        bail!("This is not a valid p2panda schema name");
+                    }
+
+                    Ok(())
+                })
+                .interact()?,
+        };
+
+        init_schema_file(&schema_path, &schema_name)?;
+    } else {
+        println!(
+            "Do not create {} file as it already exists",
+            SCHEMA_FILE_NAME
+        );
+    }
 
     println!("Successfully initialised new fishy project in target directory");
 
@@ -62,45 +89,18 @@ fn sanity_check(target_dir: &Path) -> Result<()> {
         );
     }
 
-    // Check if files already exist
-    [SCHEMA_FILE_NAME, LOCK_FILE_NAME]
-        .iter()
-        .try_for_each(|file_name| {
-            let mut path = target_dir.to_path_buf();
-            path.push(file_name);
-
-            if path.exists() {
-                bail!("Found an already existing '{file_name}' file")
-            }
-
-            Ok(())
-        })?;
-
     Ok(())
 }
 
 /// Creates a file with a newly generated ed25519 private key inside.
-fn init_secret_file(target_dir: &Path) -> Result<()> {
+fn init_secret_file(key_pair_path: &Path) -> Result<()> {
     let key_pair = KeyPair::new();
-
-    let mut path = target_dir.to_path_buf();
-    path.push(PRIVATE_KEY_FILE_NAME);
-
-    if !path.exists() {
-        write_key_pair(&path, &key_pair)?;
-    }
-
+    write_key_pair(key_pair_path, &key_pair)?;
     Ok(())
 }
 
 /// Creates a new schema file from a small template.
-fn init_schema_file(target_dir: &Path, schema_name: &str) -> Result<()> {
-    let schema_path = {
-        let mut path = target_dir.to_path_buf();
-        path.push(SCHEMA_FILE_NAME);
-        path
-    };
-
+fn init_schema_file(schema_path: &Path, schema_name: &str) -> Result<()> {
     write_file(
         schema_path,
         &format!(
