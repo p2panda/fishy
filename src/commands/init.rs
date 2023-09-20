@@ -95,7 +95,7 @@ fn sanity_check(target_dir: &Path) -> Result<()> {
 /// Creates a file with a newly generated ed25519 private key inside.
 fn init_secret_file(key_pair_path: &Path) -> Result<()> {
     let key_pair = KeyPair::new();
-    write_key_pair(&key_pair_path, &key_pair)?;
+    write_key_pair(key_pair_path, &key_pair)?;
     Ok(())
 }
 
