@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Improved error messages for missing files [#7](https://github.com/p2panda/fishy/pull/7)
 
+### Added
+
+* Allow relating to schemas via `id` [#4](https://github.com/p2panda/fishy/issues/4)
+
 ## [0.1.0]
 
 * Initial release
