@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use gql_client::Client;
 use indicatif::ProgressBar;
 use p2panda_rs::entry::decode::decode_entry;
@@ -22,7 +22,10 @@ pub async fn deploy(lock_path: PathBuf, endpoint: &str) -> Result<()> {
     print_variable("endpoint", endpoint);
     println!();
 
-    let lock_file = LockFile::from_path(&lock_path)?;
+    let lock_file = LockFile::from_path(&lock_path).context(format!(
+        "Try reading lock file from path '{}'",
+        lock_path.display()
+    ))?;
 
     let commits = lock_file.commits.unwrap_or(Vec::new());
     if commits.is_empty() {
