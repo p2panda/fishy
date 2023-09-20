@@ -7,7 +7,7 @@ use dialoguer::Input;
 use p2panda_rs::identity::KeyPair;
 use p2panda_rs::schema::validate::validate_name;
 
-use crate::constants::{LOCK_FILE_NAME, PRIVATE_KEY_FILE_NAME, SCHEMA_FILE_NAME};
+use crate::constants::{PRIVATE_KEY_FILE_NAME, SCHEMA_FILE_NAME};
 use crate::utils::files::{absolute_path, write_file};
 use crate::utils::key_pair::write_key_pair;
 use crate::utils::terminal::{print_title, print_variable};
@@ -62,20 +62,6 @@ fn sanity_check(target_dir: &Path) -> Result<()> {
         );
     }
 
-    // Check if files already exist
-    [SCHEMA_FILE_NAME, LOCK_FILE_NAME]
-        .iter()
-        .try_for_each(|file_name| {
-            let mut path = target_dir.to_path_buf();
-            path.push(file_name);
-
-            if path.exists() {
-                bail!("Found an already existing '{file_name}' file")
-            }
-
-            Ok(())
-        })?;
-
     Ok(())
 }
 
@@ -88,6 +74,8 @@ fn init_secret_file(target_dir: &Path) -> Result<()> {
 
     if !path.exists() {
         write_key_pair(&path, &key_pair)?;
+    } else {
+        println!("Do not create private key file as it already exists");
     }
 
     Ok(())
@@ -101,16 +89,20 @@ fn init_schema_file(target_dir: &Path, schema_name: &str) -> Result<()> {
         path
     };
 
-    write_file(
-        schema_path,
-        &format!(
-            r#"[{schema_name}]
+    if !schema_path.exists() {
+        write_file(
+            schema_path,
+            &format!(
+                r#"[{schema_name}]
 description = "Write about your schema here"
 
 [{schema_name}.fields]
 some_field = {{ type = "str" }}"#
-        ),
-    )?;
+            ),
+        )?;
+    } else {
+        println!("Do not create schema file as it already exists");
+    }
 
     Ok(())
 }
