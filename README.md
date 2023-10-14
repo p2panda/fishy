@@ -1,9 +1,9 @@
 <h1 align="center">fishy</h1>
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/p2panda/.github/main/assets/fish-left.gif" width="auto" height="30px">
+  <img src="https://raw.githubusercontent.com/p2panda/.github/main/assets/fish-left.gif" width="auto" height="35px">
   <strong>Create, manage and deploy p2panda schemas</strong>
-  <img src="https://raw.githubusercontent.com/p2panda/.github/main/assets/fish-right.gif" width="auto" height="30px">
+  <img src="https://raw.githubusercontent.com/p2panda/.github/main/assets/fish-right.gif" width="auto" height="35px">
 </div>
 
 <br />
