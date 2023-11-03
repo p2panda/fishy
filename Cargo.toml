@@ -28,7 +28,7 @@ dialoguer = "0.10.4"
 gql_client = "1.0.7"
 hex = "0.4.3"
 indicatif = "0.17.5"
-p2panda-rs = { git = "https://github.com/p2panda/p2panda", rev = "06b2fee74b40c779d85a0ef3b37bab8386b164ca", features = ["test-utils"] }
+p2panda-rs = { version = "0.8.0", features = ["test-utils"] }
 path-clean = "1.0.1"
 serde = { version = "1.0.174", features = ["derive"] }
 tokio = { version = "1.29.1", features = ["macros", "rt"] }
