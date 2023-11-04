@@ -2,18 +2,13 @@
 
 use std::path::PathBuf;
 
-use anyhow::{anyhow, bail, Context, Result};
-use gql_client::Client;
+use anyhow::{bail, Context, Result};
+use fishy::lock_file::LockFile;
+use fishy::Client;
 use indicatif::ProgressBar;
-use p2panda_rs::entry::decode::decode_entry;
-use p2panda_rs::entry::traits::AsEntry;
-use p2panda_rs::entry::{LogId, SeqNum};
-use p2panda_rs::hash::Hash;
-use serde::Deserialize;
 
-use crate::lock_file::LockFile;
-use crate::utils::files::absolute_path;
 use crate::utils::terminal::{print_title, print_variable};
+use fishy::utils::files::absolute_path;
 
 /// Deploy created schemas on a node.
 pub async fn deploy(lock_path: PathBuf, endpoint: &str) -> Result<()> {
@@ -41,60 +36,11 @@ pub async fn deploy(lock_path: PathBuf, endpoint: &str) -> Result<()> {
     let client = Client::new(endpoint);
 
     for commit in commits {
-        let entry = decode_entry(&commit.entry).unwrap();
+        let published = client.publish(commit).await?;
 
-        let query = format!(
-            r#"
-            {{
-                nextArgs(publicKey: "{}", viewId: "{}") {{
-                    logId
-                    seqNum
-                    skiplink
-                    backlink
-                }}
-            }}
-            "#,
-            entry.public_key(),
-            commit.entry_hash,
-        );
-
-        let response = client.query_unwrap::<NextArgsResponse>(&query).await;
-
-        if let Ok(result) = response {
-            let args = result.next_args;
-
-            if entry.log_id() != &args.log_id {
-                bail!("Inconsistency between local commits and node detected");
-            }
-
-            // Check if node already knows about this commit
-            if entry.seq_num() < &args.seq_num {
-                skipped += 1;
-                progress.inc(1);
-
-                // Skip this one
-                continue;
-            }
+        if !published {
+            skipped += 1;
         }
-
-        let query = format!(
-            r#"
-            mutation Publish {{
-                publish(entry: "{}", operation: "{}") {{
-                    logId
-                    seqNum
-                    skiplink
-                    backlink
-                }}
-            }}
-            "#,
-            commit.entry, commit.operation
-        );
-
-        client
-            .query_unwrap::<PublishResponse>(&query)
-            .await
-            .map_err(|err| anyhow!("GraphQL request to node failed: {err}"))?;
 
         progress.inc(1);
     }
@@ -112,28 +58,4 @@ pub async fn deploy(lock_path: PathBuf, endpoint: &str) -> Result<()> {
     }
 
     Ok(())
-}
-
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-#[allow(dead_code)]
-struct NextArguments {
-    log_id: LogId,
-    seq_num: SeqNum,
-    skiplink: Option<Hash>,
-    backlink: Option<Hash>,
-}
-
-/// GraphQL response for `nextArgs` query.
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-struct NextArgsResponse {
-    next_args: NextArguments,
-}
-
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-#[allow(dead_code)]
-struct PublishResponse {
-    publish: NextArguments,
 }

@@ -16,8 +16,8 @@ use p2panda_rs::schema::{FieldType as PandaFieldType, Schema, SchemaId};
 use p2panda_rs::test_utils::memory_store::helpers::send_to_store;
 use p2panda_rs::test_utils::memory_store::MemoryStore;
 
-use crate::lock_file::Commit;
 use crate::schema_file::{FieldType, RelationType};
+use crate::lock_file::Commit;
 
 use super::diff::{FieldDiff, FieldTypeDiff, SchemaDiff};
 

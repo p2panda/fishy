@@ -4,12 +4,12 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Result};
 use dialoguer::Input;
+use fishy::utils::files::{absolute_path, write_file};
+use fishy::utils::key_pair::write_key_pair;
 use p2panda_rs::identity::KeyPair;
 use p2panda_rs::schema::validate::validate_name;
 
 use crate::constants::{PRIVATE_KEY_FILE_NAME, SCHEMA_FILE_NAME};
-use crate::utils::files::{absolute_path, write_file};
-use crate::utils::key_pair::write_key_pair;
 use crate::utils::terminal::{print_title, print_variable};
 
 /// Initialises all files for a new fishy project in a given folder.

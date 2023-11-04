@@ -4,8 +4,8 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 
-use crate::lock_file::{Commit, LockFile};
 use crate::utils::files::{self};
+use crate::lock_file::{Commit, LockFile};
 
 /// Write commits to lock file.
 pub fn write_to_lock_file(

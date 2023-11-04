@@ -1,15 +1,20 @@
 [package]
 name = "fishy"
 version = "0.1.0"
-authors = [
-  "adz <x12@adz.garden>",
-  "sandreae <contact@samandreae.com>",
-]
+authors = ["adz <x12@adz.garden>", "sandreae <contact@samandreae.com>"]
 edition = "2021"
 description = "Create, manage and deploy p2panda schemas"
 repository = "https://github.com/p2panda/fishy"
 license = "AGPL-3.0-or-later"
 readme = "README.md"
+
+[[bin]]
+name = "fishy"
+path = "src/main.rs"
+
+[lib]
+name = "fishy"
+path = "src/lib/lib.rs"
 
 [profile.release]
 strip = true

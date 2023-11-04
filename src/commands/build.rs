@@ -1,28 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-mod current;
-mod diff;
-mod executor;
-mod previous;
-mod print;
-mod write;
-
 use std::path::PathBuf;
 
 use anyhow::{bail, Context, Result};
 use dialoguer::Confirm;
+use fishy::build::{
+    execute_plan, get_current_schemas, get_diff, get_previous_schemas, write_to_lock_file,
+};
+use fishy::lock_file::LockFile;
+use fishy::schema_file::SchemaFile;
+use fishy::utils::files::absolute_path;
+use fishy::utils::key_pair;
 use p2panda_rs::test_utils::memory_store::MemoryStore;
 
-use crate::commands::build::current::get_current_schemas;
-use crate::commands::build::diff::get_diff;
-use crate::commands::build::executor::execute_plan;
-use crate::commands::build::previous::get_previous_schemas;
-use crate::commands::build::print::print_plan;
-use crate::commands::build::write::write_to_lock_file;
-use crate::lock_file::LockFile;
-use crate::schema_file::SchemaFile;
-use crate::utils::files::absolute_path;
-use crate::utils::key_pair;
+use crate::utils::print::print_plan;
 use crate::utils::terminal::{print_title, print_variable};
 
 /// Automatically creates and signs p2panda data from a key pair and the defined schemas.

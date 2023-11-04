@@ -12,13 +12,13 @@ use p2panda_rs::schema::{
     FieldName, FieldType as PandaFieldType, SchemaDescription, SchemaId, SchemaName,
 };
 
-use crate::schema_file::{
+use fishy::schema_file::{
     FieldType, RelationId, RelationSchema, RelationType, SchemaField, SchemaFields,
 };
 
-use super::diff::FieldTypeDiff;
-use super::executor::Plan;
-use super::previous::PreviousSchemas;
+use fishy::build::FieldTypeDiff;
+use fishy::build::Plan;
+use fishy::build::PreviousSchemas;
 
 /// Shows the execution plan to the user.
 pub fn print_plan(

@@ -2,8 +2,6 @@
 
 mod commands;
 mod constants;
-mod lock_file;
-mod schema_file;
 mod utils;
 
 use std::path::PathBuf;
