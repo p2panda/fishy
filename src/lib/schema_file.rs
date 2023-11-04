@@ -70,6 +70,11 @@ impl SchemaFields {
         self.0.len()
     }
 
+    /// Returns `true` if schema contains no fields, otherwise `false`.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     /// Inserts a new field.
     pub fn insert(&mut self, field_name: &FieldName, field: &SchemaField) {
         self.0.insert(field_name.clone(), field.clone());
@@ -78,6 +83,12 @@ impl SchemaFields {
     /// Returns an iterator over all fields.
     pub fn iter(&self) -> Iter<FieldName, SchemaField> {
         self.0.iter()
+    }
+}
+
+impl Default for SchemaFields {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

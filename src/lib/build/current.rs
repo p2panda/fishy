@@ -10,7 +10,7 @@ pub fn get_current_schemas(schema_file: &SchemaFile) -> Result<Vec<CurrentSchema
     schema_file
         .iter()
         .map(|(schema_name, schema_definition)| {
-            if schema_definition.fields.len() == 0 {
+            if schema_definition.fields.is_empty() {
                 bail!("Schema {schema_name} does not contain any fields");
             }
 

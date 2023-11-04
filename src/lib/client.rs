@@ -94,6 +94,6 @@ impl Client {
             .await
             .map_err(|err| anyhow!("GraphQL request to node failed: {err}"))?;
 
-        return Ok(true);
+        Ok(true)
     }
 }
