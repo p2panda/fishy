@@ -21,11 +21,8 @@ pub async fn get_previous_schemas(
     store: &MemoryStore,
     lock_file: &LockFile,
 ) -> Result<PreviousSchemas> {
-    // Sometimes `commits` is not defined in the .toml file, set an empty array as a fallback
-    let commits = lock_file.commits.clone().unwrap_or_default();
-
     // Publish every commit in our temporary, in-memory "node" to materialize schema documents
-    for commit in commits {
+    for commit in lock_file.commits() {
         // Check entry hash integrity
         if commit.entry_hash != commit.entry.hash() {
             bail!(

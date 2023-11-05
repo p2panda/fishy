@@ -10,17 +10,13 @@ use crate::utils::files::{self};
 /// Write commits to lock file.
 pub fn write_to_lock_file(
     mut new_commits: Vec<Commit>,
-    mut lock_file: LockFile,
+    lock_file: LockFile,
     lock_path: PathBuf,
 ) -> Result<()> {
     // Add new commits to the existing ones
     let applied_commits_count = new_commits.len();
-    let mut commits: Vec<Commit> = Vec::new();
 
-    if let Some(current_commits) = lock_file.commits.as_mut() {
-        commits.append(current_commits);
-    }
-
+    let mut commits: Vec<Commit> = lock_file.commits();
     commits.append(&mut new_commits);
 
     // Write everything to .toml file

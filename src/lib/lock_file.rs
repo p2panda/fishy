@@ -31,8 +31,8 @@ use crate::utils::files;
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LockFile {
-    pub version: LockFileVersion,
-    pub commits: Option<Vec<Commit>>,
+    version: LockFileVersion,
+    commits: Option<Vec<Commit>>,
 }
 
 impl LockFile {
@@ -51,6 +51,21 @@ impl LockFile {
         let schema_file: Self =
             toml::from_str(&data).with_context(|| "Invalid TOML syntax in lock file")?;
         Ok(schema_file)
+    }
+
+    /// Version of the lockfile.
+    pub fn version(&self) -> &LockFileVersion {
+        &self.version
+    }
+
+    /// Commits contained in the lockfile.
+    /// 
+    /// Returns an empty vec if no `commits` were defined in the .toml file yet.
+    pub fn commits(&self) -> Vec<Commit> {
+        match &self.commits {
+            Some(commits) => commits.clone(),
+            None => Vec::new(),
+        }
     }
 }
 

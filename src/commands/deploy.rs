@@ -22,7 +22,7 @@ pub async fn deploy(lock_path: PathBuf, endpoint: &str) -> Result<()> {
         lock_path.display()
     ))?;
 
-    let commits = lock_file.commits.unwrap_or(Vec::new());
+    let commits = lock_file.commits();
     if commits.is_empty() {
         bail!("No data given to deploy to node. Please run `update` command first.");
     }
