@@ -59,7 +59,7 @@ impl LockFile {
     }
 
     /// Commits contained in the lockfile.
-    /// 
+    ///
     /// Returns an empty vec if no `commits` were defined in the .toml file yet.
     pub fn commits(&self) -> Vec<Commit> {
         match &self.commits {
