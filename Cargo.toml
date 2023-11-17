@@ -34,3 +34,10 @@ serde = { version = "1.0.174", features = ["derive"] }
 tokio = { version = "1.29.1", features = ["macros", "rt"] }
 toml = "0.7.6"
 topological-sort = "0.2.2"
+
+# `openssl` is required with `vendored` feature, to support cross-compilation
+# (for example in our CI release pipeline)
+# See related issue: https://github.com/p2panda/fishy/issues/12
+[dependencies.openssl]
+version = "0.10.59"
+features = ["vendored"]
