@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1]
+
+### Changed
+
+* Use `p2panda-rs` version `0.8.1` [470627](https://github.com/p2panda/fishy/commit/47062710725504ffeff630df9029bcbdf47c3b14)
+
 ## [0.2.0]
 
 ### Added
@@ -23,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Initial release
 
-[unreleased]: https://github.com/p2panda/p2panda/compare/v0.2.0...HEAD
+[unreleased]: https://github.com/p2panda/p2panda/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/p2panda/p2panda/releases/tag/v0.2.1
 [0.2.0]: https://github.com/p2panda/p2panda/releases/tag/v0.2.0
 [0.1.0]: https://github.com/p2panda/p2panda/releases/tag/v0.1.0
