@@ -20,11 +20,11 @@
       Releases
     </a>
     <span> | </span>
-    <a href="https://p2panda.org/about/contribute">
+    <a href="https://aquadoggo.p2panda.org/about/contribute">
       Contribute
     </a>
     <span> | </span>
-    <a href="https://p2panda.org">
+    <a href="https://aquadoggo.p2panda.org/">
       Website
     </a>
   </h3>
@@ -157,4 +157,4 @@ GNU Affero General Public License v3.0 [`AGPL-3.0-or-later`](LICENSE)
 research and innovation programme within the framework of the NGI-POINTER
 Project funded under grant agreement No 871528*
 
-[`p2panda`]: https://p2panda.org
+[`p2panda`]: https://aquadoggo.p2panda.org/
